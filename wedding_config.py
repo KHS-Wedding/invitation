@@ -6,7 +6,7 @@
 
 WEDDING = {
     'site': {
-        'title': '김현수 · 김현선 결혼합니다',
+        'title': '김현수 · 김현선 결혼합니다.',
         'description': '2027년 10월 9일 토요일 오후 1시, 호텔 ICC 1층 크리스탈홀',
         # GitHub Pages 배포 주소
         'url': 'https://khs-wedding.github.io/invitation/',
