@@ -1,0 +1,40 @@
+/* 갤러리 모달 하단 카운터와 위치 점을 화면 정중앙에 배치 */
+.modal-stage {
+  margin-right: auto;
+  margin-left: auto;
+}
+
+.modal-counter {
+  align-self: center;
+  width: 100%;
+  text-align: center;
+}
+
+.modal-dots {
+  align-self: center;
+  width: max-content;
+  max-width: min(72vw, 330px);
+  margin-right: auto;
+  margin-left: auto;
+  justify-content: flex-start;
+}
+
+/*
+ * PC 브라우저에서 큰 CSS 배경 이미지를 GPU 타일로 합성할 때 생기는
+ * 가느다란 가로·세로 이음선을 방지한다.
+ */
+.modal-photo {
+  will-change: auto;
+  image-rendering: auto;
+}
+
+.modal-photo.slide-next,
+.modal-photo.slide-prev {
+  animation-fill-mode: none;
+}
+
+@media (max-width: 360px) {
+  .modal-dots {
+    max-width: min(74vw, 280px);
+  }
+}
