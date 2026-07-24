@@ -1,0 +1,26 @@
+/* 갤러리 모달 하단 카운터와 위치 점을 화면 정중앙에 배치 */
+.modal-stage {
+  margin-right: auto;
+  margin-left: auto;
+}
+
+.modal-counter {
+  align-self: center;
+  width: 100%;
+  text-align: center;
+}
+
+.modal-dots {
+  align-self: center;
+  width: max-content;
+  max-width: min(72vw, 330px);
+  margin-right: auto;
+  margin-left: auto;
+  justify-content: flex-start;
+}
+
+@media (max-width: 360px) {
+  .modal-dots {
+    max-width: min(74vw, 280px);
+  }
+}
