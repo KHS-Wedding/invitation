@@ -10,7 +10,7 @@ WEDDING = {
         'description': '2027년 10월 9일 토요일 오후 1시, 호텔 ICC',
         # GitHub Pages 배포 후 발급된 전체 URL을 입력하세요.
         # 예: https://아이디.github.io/wedding-invitation/
-        'url': '',
+        'url': 'https://saammkim.github.io/khs/',
         'draft_notice': '예식 일시와 장소는 변경될 수 있습니다.',
     },
 
