@@ -8,6 +8,45 @@
   const lazyPlaceholder = 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=';
   let lazyImageObserver = null;
 
+  const analyticsConfig = config.analytics || {};
+  const analyticsMeasurementId = String(analyticsConfig.measurement_id || '').trim();
+  const analyticsEnabled = analyticsConfig.enabled !== false
+    && /^G-[A-Z0-9]+$/i.test(analyticsMeasurementId)
+    && analyticsMeasurementId !== 'G-XXXXXXXXXX';
+
+  function setupAnalytics() {
+    if (!analyticsEnabled) return;
+
+    window.dataLayer = window.dataLayer || [];
+    window.gtag = window.gtag || function gtag() {
+      window.dataLayer.push(arguments);
+    };
+
+    window.gtag('js', new Date());
+    window.gtag('config', analyticsMeasurementId, {
+      send_page_view: true,
+      allow_google_signals: false,
+      allow_ad_personalization_signals: false,
+    });
+
+    if (!document.querySelector(`script[data-ga4-id="${analyticsMeasurementId}"]`)) {
+      const script = document.createElement('script');
+      script.async = true;
+      script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(analyticsMeasurementId)}`;
+      script.dataset.ga4Id = analyticsMeasurementId;
+      document.head.appendChild(script);
+    }
+  }
+
+  function trackEvent(eventName, parameters = {}) {
+    if (!analyticsEnabled || typeof window.gtag !== 'function') return;
+    window.gtag('event', eventName, {
+      ...parameters,
+      transport_type: 'beacon',
+    });
+  }
+
+
   if (!config || !app) {
     throw new Error('site-data.js 또는 화면 요소를 불러오지 못했습니다.');
   }
@@ -276,6 +315,9 @@
           ${lines.filter(Boolean).map((line) => `<p>${escapeHtml(line)}</p>`).join('')}
         </div>
         <small>WEDDING INVITATION</small>
+        ${analyticsEnabled && analyticsConfig.notice
+          ? `<p class="analytics-notice">${escapeHtml(analyticsConfig.notice)}</p>`
+          : ''}
       </footer>`;
   }
 
@@ -420,12 +462,22 @@
   }
 
   function setupInteractions() {
+
+    document.querySelectorAll('.map-button').forEach((link) => {
+      link.addEventListener('click', () => {
+        trackEvent('map_click', {
+          map_provider: link.classList.contains('naver') ? 'naver' : 'kakao',
+        });
+      });
+    });
+
     document.querySelector('.address-copy')?.addEventListener('click', (event) => {
       copyText(event.currentTarget.dataset.address, '주소를 복사했습니다.');
     });
 
     document.getElementById('copy-url')?.addEventListener('click', () => {
       const shareUrl = config.site.share_url || config.site.url || window.location.href.split('#')[0];
+      trackEvent('url_copy');
       copyText(shareUrl, '청첩장 주소를 복사했습니다.');
     });
 
@@ -497,6 +549,10 @@
 
     const openGalleryModal = (index) => {
       if (!modal || !gallery.length) return;
+      trackEvent('gallery_open', {
+        image_index: Number(index) + 1,
+        image_count: gallery.length,
+      });
       updateGalleryModal(index, 0);
       modal.hidden = false;
       document.body.classList.add('modal-open');
@@ -559,8 +615,15 @@
       button.addEventListener('click', () => {
         const target = document.getElementById(button.dataset.target);
         const symbol = button.querySelector('.toggle-symbol');
+        const willOpen = target.hidden;
         target.hidden = !target.hidden;
         symbol.textContent = target.hidden ? '+' : '−';
+
+        if (willOpen) {
+          trackEvent('account_open', {
+            account_side: button.dataset.target === 'groom-accounts' ? 'groom' : 'bride',
+          });
+        }
       });
     });
 
@@ -595,6 +658,7 @@
     elements.forEach((element) => observer.observe(element));
   }
 
+  setupAnalytics();
   render();
   setupInteractions();
 })();
