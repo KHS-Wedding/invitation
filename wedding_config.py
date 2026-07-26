@@ -11,8 +11,18 @@ WEDDING = {
         'url': 'https://khs-wedding.github.io/invitation/',
         'share_url': 'https://khs-wedding.github.io/invitation/',
         'share_image': 'static/share-preview-v15.png',
-        'asset_version': '16',
+        'asset_version': '17',
         'draft_notice': '',
+    },
+
+
+    'analytics': {
+        # Google Analytics 4 측정 ID를 입력하세요.
+        # 예: 'G-ABC123DE45'
+        # 아래 기본값을 실제 측정 ID로 바꾸기 전까지는 방문 통계가 전송되지 않습니다.
+        'measurement_id': 'G-0ZT7S4GRH5',
+        'enabled': True,
+        'notice': '청첩장 이용 현황 확인을 위해 익명 방문 통계와 버튼 이용정보가 수집될 수 있습니다.',
     },
 
     'design': {
