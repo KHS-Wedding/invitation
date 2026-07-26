@@ -762,162 +762,110 @@ h3 {
   display: none !important;
 }
 
-/* v15: 갤러리 모달 중앙 정렬 및 PC 합성 이음선 방지 */
-.modal-stage {
-  margin-right: auto;
-  margin-left: auto;
+
+/* v15: 팔레드오페라 정보 및 프랑스어 보조 표기 */
+.hero-date-fr {
+  margin-top: 9px !important;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 9px !important;
+  letter-spacing: .14em !important;
+  opacity: .8;
 }
 
-.modal-counter {
-  align-self: center;
-  width: 100%;
-  text-align: center;
+.venue-link {
+  padding-bottom: 0;
+  border-bottom: 0;
 }
 
-.modal-photo {
-  transform: none;
-  will-change: auto;
-  image-rendering: auto;
-}
-
-.modal-photo.slide-next,
-.modal-photo.slide-prev {
-  animation-fill-mode: none;
-}
-
-/*
- * v16: 작은 점의 시각 크기는 유지하되 전체 가로 영역을 터치 구간으로
- * 나누어, 점 바를 누르거나 손가락으로 훑으며 사진을 선택할 수 있게 한다.
- */
-.modal-dots {
-  display: flex;
-  align-self: center;
-  width: min(82vw, 360px);
-  max-width: 100%;
-  min-height: 30px;
-  align-items: stretch;
-  justify-content: stretch;
-  gap: 0;
-  margin: 3px auto 0;
-  padding: 0;
-  overflow: visible;
-  touch-action: none;
-  cursor: grab;
-}
-
-.modal-dots.is-scrubbing {
-  cursor: grabbing;
-}
-
-.modal-dot,
-.modal-dot.is-active {
-  position: relative;
-  flex: 1 1 0;
-  width: auto;
-  min-width: 0;
-  height: 30px;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  appearance: none;
-  -webkit-appearance: none;
-  cursor: pointer;
-}
-
-.modal-dot::before {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 5px;
-  height: 5px;
-  transform: translate(-50%, -50%);
-  border-radius: 999px;
-  background: rgba(255,255,255,.35);
-  transition: width .18s ease, background .18s ease, transform .18s ease;
-}
-
-.modal-dot.is-active::before {
-  width: 14px;
-  background: rgba(255,255,255,.92);
-}
-
-.modal-dots.is-scrubbing .modal-dot.is-active::before {
-  transform: translate(-50%, -50%) scale(1.06);
-}
-
-/* v17: 사진이 손가락 움직임을 따라오고 놓았을 때 자연스럽게 정착 */
-.modal-photo.is-dragging {
-  transition: none;
-  will-change: transform, opacity;
-}
-
-.modal-photo.is-settling {
-  transition:
-    transform .16s cubic-bezier(.22, .7, .25, 1),
-    opacity .16s ease;
-  will-change: transform, opacity;
-}
-
-.modal-photo.scrub-change {
-  animation: gallery-scrub-change .16s ease;
-}
-
-@keyframes gallery-scrub-change {
-  from { opacity: .72; }
-  to { opacity: 1; }
-}
-
-@media (max-width: 360px) {
-  .modal-dots {
-    width: min(84vw, 310px);
-  }
-}
-
-/* v22: 교통수단 장식을 줄이고 실제 경로 안내의 가로 공간을 넓힘 */
-.transport-item {
-  grid-template-columns: 64px minmax(0, 1fr);
-  gap: 8px;
-  padding: 20px 14px;
-}
-
-.transport-heading {
-  align-items: flex-start;
-  justify-content: flex-start;
-  padding-top: 2px;
-  text-align: left;
-}
-
-.transport-icon {
-  display: none;
-}
-
-.transport-heading strong {
-  font-size: 12px;
-  line-height: 1.45;
-}
-
-.transport-copy {
-  min-width: 0;
-  padding-left: 10px;
-}
-
-.transport-route-tail {
+.venue-link-main {
   display: inline-block;
-  white-space: nowrap;
+  padding-bottom: 4px;
+  border-bottom: 1px solid currentColor;
+}
+
+.venue-link small {
+  display: block;
+  margin-top: 7px;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 8px;
+  font-weight: 400;
+  letter-spacing: .13em;
+  line-height: 1.5;
+  opacity: .82;
+}
+
+.date-summary .date-fr {
+  margin-top: 11px;
+  color: #9a8775;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 9px;
+  letter-spacing: .13em;
+}
+
+.venue-summary h3 {
+  margin-bottom: 4px;
+}
+
+.venue-summary .venue-fr {
+  margin: 0 0 12px;
+  color: #89735d;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 9px;
+  letter-spacing: .16em;
+}
+
+.venue-summary .hall-name {
+  margin-bottom: 1px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.venue-summary .hall-fr {
+  margin: 0 0 13px;
+  color: #9a8877;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 9px;
+  letter-spacing: .12em;
+}
+
+.venue-summary .venue-address {
+  margin-top: 10px;
+}
+
+.transport-copy p {
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.transport-item:nth-child(3) .transport-icon {
+  background: #eee8e2;
+  color: #775f55;
+}
+
+.transport-item:nth-child(3) .transport-heading strong {
+  color: #775f55;
+}
+
+/* 갤러리 위치 점 표시를 화면 정중앙에 배치 */
+.modal-dots {
+  justify-content: center;
 }
 
 @media (max-width: 360px) {
-  .transport-item {
-    grid-template-columns: 58px minmax(0, 1fr);
-    gap: 7px;
-    padding-right: 11px;
-    padding-left: 11px;
+  .venue-link small {
+    font-size: 7px;
+    letter-spacing: .1em;
   }
 
-  .transport-copy {
-    padding-left: 8px;
+  .transport-item {
+    grid-template-columns: 76px 1fr;
+  }
+
+  .transport-heading strong {
+    font-size: 11px;
+  }
+
+  .transport-copy p {
+    font-size: 11px;
   }
 }

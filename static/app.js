@@ -19,32 +19,6 @@
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#039;');
 
-  const readableKoreanText = (value = '') => {
-    const phrases = [
-      '지상 및 지하',
-      '이용하실 수 있습니다.',
-      '다소 혼잡할 수 있는 점',
-      '너른 양해 부탁드립니다.',
-    ];
-    return phrases.reduce(
-      (text, phrase) => text.replaceAll(phrase, phrase.replaceAll(' ', '&nbsp;')),
-      escapeHtml(value),
-    );
-  };
-
-  const readableTransportText = (value = '') => {
-    const protectRoute = (segment) => escapeHtml(segment)
-      .replace(/택시\s+(\d+)분/g, '택시&nbsp;$1분')
-      .replace(/버스\s+(\d+번)\s+(\d+)분/g, '버스&nbsp;$1&nbsp;$2분');
-
-    const parts = String(value).split(' │ ');
-    const first = protectRoute(parts.shift() || '');
-    const following = parts.map((part) =>
-      `<span class="transport-route-tail">│&nbsp;${protectRoute(part)}</span>`
-    ).join(' ');
-    return following ? `${first} ${following}` : first;
-  };
-
   const safeUrl = (value = '') => {
     const url = String(value).trim();
     return /^(https?:\/\/|tel:)/i.test(url) ? url : '#';
@@ -161,7 +135,6 @@
         ${gallery.map((image, index) => {
           const immediate = index < 3;
           const isExtra = index >= initialCount;
-          const thumbnailSource = image.thumbnail_src || image.src;
           return `
             <button
               type="button"
@@ -172,8 +145,8 @@
             >
               <img
                 class="gallery-photo protected-photo${immediate ? '' : ' lazy-photo'}"
-                src="${immediate ? escapeHtml(thumbnailSource) : lazyPlaceholder}"
-                ${immediate ? '' : `data-src="${escapeHtml(thumbnailSource)}"`}
+                src="${immediate ? escapeHtml(image.src) : lazyPlaceholder}"
+                ${immediate ? '' : `data-src="${escapeHtml(image.src)}"`}
                 alt="${escapeHtml(image.alt || `웨딩 사진 ${index + 1}`)}"
                 loading="${immediate ? 'eager' : 'lazy'}"
                 decoding="async"
@@ -192,8 +165,11 @@
   }
 
   function transportIcon(title = '') {
-    if (title.includes('기차')) return '🚆';
     if (title.includes('버스')) return '🚌';
+    if (title.includes('지하철')) return '🚇';
+    if (title.includes('자가용')) return '🚗';
+    if (title.includes('주차')) return 'P';
+    if (title.includes('기차')) return '🚆';
     return '•';
   }
 
@@ -202,13 +178,15 @@
     const items = transport.items || [];
     if (!items.length) return '';
     return `
+      <div class="guide-label reveal">${escapeHtml(transport.draft_label || '')}</div>
       <div class="transport-list reveal">
         ${items.map((item) => `
           <article class="transport-item">
             <div class="transport-heading">
+              <span class="transport-icon" aria-hidden="true">${transportIcon(item.title)}</span>
               <strong>${escapeHtml(item.title)}</strong>
             </div>
-            <div class="transport-copy">${(item.lines || []).map((line) => `<p>${readableTransportText(line)}</p>`).join('')}</div>
+            <div class="transport-copy">${(item.lines || []).map((line) => `<p>${escapeHtml(line)}</p>`).join('')}</div>
           </article>`).join('')}
       </div>`;
   }
@@ -220,7 +198,7 @@
         <div class="parking-icon" aria-hidden="true">P</div>
         <div>
           <h3>${escapeHtml(parking.title)}</h3>
-          ${(parking.lines || []).map((line) => `<p>${readableKoreanText(line)}</p>`).join('')}
+          ${(parking.lines || []).map((line) => `<p>${escapeHtml(line)}</p>`).join('')}
         </div>
       </article>`;
   }
@@ -307,8 +285,10 @@
           <div class="hero-rule"></div>
           <p>${escapeHtml(wedding.display_date)}</p>
           <p>${escapeHtml(wedding.display_time)}</p>
+          ${wedding.display_fr ? `<p class="hero-date-fr">${escapeHtml(wedding.display_fr)}</p>` : ''}
           <a class="venue-link" href="${safeUrl(venue.naver_place_url)}" target="_blank" rel="noopener">
-            ${escapeHtml(venue.name)}${venue.hall ? ` · ${escapeHtml(venue.hall)}` : ''}
+            <span class="venue-link-main">${escapeHtml(venue.name)}${venue.hall ? ` · ${escapeHtml(venue.hall)}` : ''}</span>
+            ${venue.name_fr ? `<small>${escapeHtml(venue.name_fr)}${venue.hall_fr ? ` · ${escapeHtml(venue.hall_fr)}` : ''}</small>` : ''}
           </a>
         </div>
       </header>
@@ -330,6 +310,7 @@
         <div class="date-summary reveal">
           <p class="date-large">${formatDisplayDate(config.wedding.date)}</p>
           <p>${escapeHtml(wedding.display_date)} ${escapeHtml(wedding.display_time)}</p>
+          ${wedding.display_fr ? `<p class="date-fr">${escapeHtml(wedding.display_fr)}</p>` : ''}
         </div>
         ${renderCalendar()}
         <p class="dday reveal">${escapeHtml(couple.groom)} · ${escapeHtml(couple.bride)}의 결혼식까지 <strong>${getDday(wedding.date)}</strong></p>
@@ -344,22 +325,23 @@
         ${sectionTitle('LOCATION', '오시는 길')}
         <div class="venue-summary reveal">
           <h3>${escapeHtml(venue.name)}</h3>
+          ${venue.name_fr ? `<p class="venue-fr">${escapeHtml(venue.name_fr)}</p>` : ''}
           ${venue.hall ? `<p class="hall-name">${escapeHtml(venue.hall)}</p>` : ''}
-          <p>${escapeHtml(venue.address)}</p>
+          ${venue.hall_fr ? `<p class="hall-fr">${escapeHtml(venue.hall_fr)}</p>` : ''}
+          <p class="venue-address">${escapeHtml(venue.address)}</p>
           ${venue.phone ? `<a href="tel:${escapeHtml(venue.phone.replaceAll('-', ''))}">${escapeHtml(venue.phone)}</a>` : ''}
         </div>
 
         ${renderMap()}
 
         <div class="map-buttons reveal">
-          <a class="map-button naver naver-directions" href="${safeUrl(venue.naver_directions_url)}" data-fallback-url="${safeUrl(venue.naver_directions_url)}">네이버 길찾기</a>
+          <a class="map-button naver" href="${safeUrl(venue.naver_directions_url)}" target="_blank" rel="noopener">네이버 길찾기</a>
           <a class="map-button kakao" href="${safeUrl(venue.kakao_directions_url)}" target="_blank" rel="noopener">카카오 길찾기</a>
         </div>
 
         <button type="button" class="address-copy reveal" data-address="${escapeHtml(venue.address)}">주소 복사</button>
-        <div class="guide-label reveal">${escapeHtml(config.transport.draft_label || '')}</div>
-        ${renderParking()}
         ${renderTransport()}
+        ${renderParking()}
       </section>
 
       ${renderAccounts()}
@@ -424,30 +406,6 @@
   }
 
   function setupInteractions() {
-    document.querySelector('.naver-directions')?.addEventListener('click', (event) => {
-      event.preventDefault();
-      const button = event.currentTarget;
-      const fallbackUrl = button.dataset.fallbackUrl;
-      const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-      if (!isMobile) {
-        window.open(fallbackUrl, '_blank', 'noopener');
-        return;
-      }
-
-      const venue = config.venue;
-      const appName = encodeURIComponent(config.site.url || window.location.href.split('#')[0]);
-      const destinationName = encodeURIComponent(venue.name);
-      const routeUrl = `nmap://route/car?dlat=${venue.latitude}&dlng=${venue.longitude}&dname=${destinationName}&appname=${appName}`;
-      const clickedAt = Date.now();
-      window.location.href = routeUrl;
-
-      window.setTimeout(() => {
-        if (document.visibilityState === 'visible' && Date.now() - clickedAt < 2200) {
-          window.location.href = fallbackUrl;
-        }
-      }, 1400);
-    });
-
     document.querySelector('.address-copy')?.addEventListener('click', (event) => {
       copyText(event.currentTarget.dataset.address, '주소를 복사했습니다.');
     });
@@ -482,51 +440,19 @@
     const modalDots = modal?.querySelector('.modal-dots');
     let currentGalleryIndex = 0;
     let swipeStartX = null;
-    let swipeCurrentX = null;
-    let dotScrubPointerId = null;
-    let suppressNextDotClick = false;
-    let modalImageRequestId = 0;
-    const galleryImageCache = new Map();
 
     if (modalDots && gallery.length) {
       modalDots.innerHTML = gallery.map((_, index) => `
         <button type="button" class="modal-dot" data-dot-index="${index}" aria-label="${index + 1}번째 사진"></button>`).join('');
     }
 
-    const preloadGalleryImage = (index) => {
-      if (!gallery.length) return Promise.resolve();
-      const normalized = (index + gallery.length) % gallery.length;
-      const source = gallery[normalized].src;
-      if (galleryImageCache.has(source)) return galleryImageCache.get(source);
-
-      const image = new Image();
-      image.decoding = 'async';
-      const ready = new Promise((resolve) => {
-        image.addEventListener('load', () => {
-          const decoded = typeof image.decode === 'function'
-            ? image.decode()
-            : Promise.resolve();
-          decoded.catch(() => {}).finally(resolve);
-        }, { once: true });
-        image.addEventListener('error', resolve, { once: true });
-      });
-      image.src = source;
-      galleryImageCache.set(source, ready);
-      return ready;
-    };
-
-    const preloadAdjacent = (centerIndex) => {
+    const preloadAdjacent = () => {
       if (gallery.length < 2) return;
-      const prepare = () => {
-        [1, -1].forEach((offset) => {
-          preloadGalleryImage(centerIndex + offset);
-        });
-      };
-      if ('requestIdleCallback' in window) {
-        window.requestIdleCallback(prepare, { timeout: 900 });
-      } else {
-        window.setTimeout(prepare, 180);
-      }
+      [currentGalleryIndex - 1, currentGalleryIndex + 1].forEach((index) => {
+        const normalized = (index + gallery.length) % gallery.length;
+        const preload = new Image();
+        preload.src = gallery[normalized].src;
+      });
     };
 
     const updateDots = () => {
@@ -536,43 +462,23 @@
         dot.classList.toggle('is-active', active);
         dot.setAttribute('aria-current', active ? 'true' : 'false');
       });
+      const activeDot = modalDots.querySelector('.modal-dot.is-active');
+      activeDot?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
     };
 
-    const updateGalleryModal = (index, direction = 0, mode = 'normal') => {
+    const updateGalleryModal = (index, direction = 0) => {
       if (!modal || !modalPhoto || !gallery.length) return;
       currentGalleryIndex = (index + gallery.length) % gallery.length;
       const image = gallery[currentGalleryIndex];
-      const previewSource = image.thumbnail_src || image.src;
-      const requestId = ++modalImageRequestId;
 
-      modalPhoto.classList.remove('slide-next', 'slide-prev', 'scrub-change', 'is-dragging', 'is-settling');
-      modalPhoto.style.removeProperty('transform');
-      modalPhoto.style.removeProperty('opacity');
+      modalPhoto.classList.remove('slide-next', 'slide-prev');
       void modalPhoto.offsetWidth;
-      // 그리드에서 이미 받아 둔 작은 사진을 먼저 보여 주어 빈 화면을 없앱니다.
-      modalPhoto.style.backgroundImage = `url("${encodeURI(previewSource).replaceAll('"', '%22')}")`;
+      modalPhoto.style.backgroundImage = `url("${encodeURI(image.src).replaceAll('"', '%22')}")`;
       modalPhoto.setAttribute('aria-label', image.alt || `웨딩 사진 ${currentGalleryIndex + 1}`);
-      if (mode === 'scrub') {
-        modalPhoto.classList.add('scrub-change');
-      } else if (direction !== 0) {
-        modalPhoto.classList.add(direction > 0 ? 'slide-next' : 'slide-prev');
-      }
+      if (direction !== 0) modalPhoto.classList.add(direction > 0 ? 'slide-next' : 'slide-prev');
       if (modalCounter) modalCounter.textContent = `${currentGalleryIndex + 1} / ${gallery.length}`;
       updateDots();
-
-      // 현재 사진을 최우선으로 준비합니다. 준비가 끝난 뒤에만 앞뒤 사진을
-      // 천천히 받아 모바일 네트워크가 여러 요청에 막히지 않도록 합니다.
-      const currentReady = preloadGalleryImage(currentGalleryIndex);
-      if (previewSource !== image.src) {
-        currentReady.then(() => {
-          if (requestId !== modalImageRequestId) return;
-          modalPhoto.style.backgroundImage = `url("${encodeURI(image.src).replaceAll('"', '%22')}")`;
-        });
-      }
-      currentReady.then(() => {
-        if (requestId !== modalImageRequestId) return;
-        preloadAdjacent(currentGalleryIndex);
-      });
+      preloadAdjacent();
     };
 
     const openGalleryModal = (index) => {
@@ -585,143 +491,40 @@
 
     const closeGalleryModal = () => {
       if (!modal) return;
-      modalImageRequestId += 1;
       modal.hidden = true;
       document.body.classList.remove('modal-open');
     };
 
     document.querySelectorAll('.gallery-item').forEach((button) => {
-      button.addEventListener('pointerdown', () => {
-        preloadGalleryImage(Number(button.dataset.galleryIndex || 0));
-      }, { passive: true });
       button.addEventListener('click', () => openGalleryModal(Number(button.dataset.galleryIndex || 0)));
     });
 
     modal?.querySelector('.modal-close')?.addEventListener('click', closeGalleryModal);
     modal?.querySelector('.modal-prev')?.addEventListener('click', () => updateGalleryModal(currentGalleryIndex - 1, -1));
     modal?.querySelector('.modal-next')?.addEventListener('click', () => updateGalleryModal(currentGalleryIndex + 1, 1));
-    const dotIndexAtPosition = (clientX) => {
-      if (!modalDots || !gallery.length) return 0;
-      const rect = modalDots.getBoundingClientRect();
-      const position = Math.min(Math.max(clientX - rect.left, 0), rect.width);
-      return Math.min(gallery.length - 1, Math.floor((position / rect.width) * gallery.length));
-    };
-
-    const scrubToPosition = (clientX) => {
-      const nextIndex = dotIndexAtPosition(clientX);
-      if (nextIndex === currentGalleryIndex) return;
-      updateGalleryModal(nextIndex, 0, 'scrub');
-    };
-
-    modalDots?.addEventListener('pointerdown', (event) => {
-      if (event.pointerType === 'mouse' && event.button !== 0) return;
-      event.stopPropagation();
-      dotScrubPointerId = event.pointerId;
-      suppressNextDotClick = true;
-      modalDots.setPointerCapture?.(event.pointerId);
-      modalDots.classList.add('is-scrubbing');
-      scrubToPosition(event.clientX);
-    });
-
-    modalDots?.addEventListener('pointermove', (event) => {
-      if (event.pointerId !== dotScrubPointerId) return;
-      event.stopPropagation();
-      scrubToPosition(event.clientX);
-    });
-
-    const finishDotScrub = (event) => {
-      if (!modalDots || event.pointerId !== dotScrubPointerId) return;
-      event.stopPropagation();
-      scrubToPosition(event.clientX);
-      modalDots.releasePointerCapture?.(event.pointerId);
-      modalDots.classList.remove('is-scrubbing');
-      dotScrubPointerId = null;
-    };
-
-    modalDots?.addEventListener('pointerup', finishDotScrub);
-    modalDots?.addEventListener('pointercancel', (event) => {
-      if (event.pointerId !== dotScrubPointerId) return;
-      event.stopPropagation();
-      modalDots.classList.remove('is-scrubbing');
-      dotScrubPointerId = null;
-    });
-
-    modalDots?.addEventListener('click', (event) => {
-      event.stopPropagation();
-      if (suppressNextDotClick) {
-        suppressNextDotClick = false;
-        event.preventDefault();
-        return;
-      }
-      const dot = event.target.closest('.modal-dot');
-      if (!dot) return;
-      const nextIndex = Number(dot.dataset.dotIndex || 0);
-      if (nextIndex === currentGalleryIndex) return;
-      const direction = nextIndex > currentGalleryIndex ? 1 : -1;
-      updateGalleryModal(nextIndex, direction);
+    modalDots?.querySelectorAll('.modal-dot').forEach((dot) => {
+      dot.addEventListener('click', () => {
+        const nextIndex = Number(dot.dataset.dotIndex || 0);
+        const direction = nextIndex >= currentGalleryIndex ? 1 : -1;
+        updateGalleryModal(nextIndex, direction);
+      });
     });
     modal?.addEventListener('click', (event) => {
       if (event.target === modal) closeGalleryModal();
     });
     modal?.addEventListener('pointerdown', (event) => {
-      if (event.target.closest('.modal-dots')) return;
-      if (!event.target.closest('.modal-viewport')) return;
       swipeStartX = event.clientX;
-      swipeCurrentX = event.clientX;
-      modalPhoto?.classList.remove('slide-next', 'slide-prev', 'scrub-change', 'is-settling');
-      modalPhoto?.classList.add('is-dragging');
-    });
-    modal?.addEventListener('pointermove', (event) => {
-      if (swipeStartX === null || !modalPhoto) return;
-      swipeCurrentX = event.clientX;
-      const distance = (swipeCurrentX - swipeStartX) * .58;
-      const fade = 1 - Math.min(Math.abs(distance) / 420, .22);
-      modalPhoto.style.transform = `translate3d(${distance}px, 0, 0)`;
-      modalPhoto.style.opacity = String(fade);
     });
     modal?.addEventListener('pointerup', (event) => {
-      if (event.target.closest('.modal-dots')) return;
       if (swipeStartX === null) return;
       const distance = event.clientX - swipeStartX;
       swipeStartX = null;
-      swipeCurrentX = null;
-      if (!modalPhoto) return;
-
-      modalPhoto.classList.remove('is-dragging');
-      modalPhoto.classList.add('is-settling');
-
-      if (Math.abs(distance) < 45) {
-        modalPhoto.style.transform = 'translate3d(0, 0, 0)';
-        modalPhoto.style.opacity = '1';
-        window.setTimeout(() => {
-          modalPhoto.classList.remove('is-settling');
-          modalPhoto.style.removeProperty('transform');
-          modalPhoto.style.removeProperty('opacity');
-        }, 180);
-        return;
-      }
-
+      if (Math.abs(distance) < 45) return;
       const direction = distance < 0 ? 1 : -1;
-      preloadGalleryImage(currentGalleryIndex + direction);
-      modalPhoto.style.transform = `translate3d(${-direction * 70}px, 0, 0)`;
-      modalPhoto.style.opacity = '.42';
-      window.setTimeout(() => {
-        updateGalleryModal(currentGalleryIndex + direction, direction);
-      }, 120);
+      updateGalleryModal(currentGalleryIndex + direction, direction);
     });
     modal?.addEventListener('pointercancel', () => {
       swipeStartX = null;
-      swipeCurrentX = null;
-      if (!modalPhoto) return;
-      modalPhoto.classList.remove('is-dragging');
-      modalPhoto.classList.add('is-settling');
-      modalPhoto.style.transform = 'translate3d(0, 0, 0)';
-      modalPhoto.style.opacity = '1';
-      window.setTimeout(() => {
-        modalPhoto.classList.remove('is-settling');
-        modalPhoto.style.removeProperty('transform');
-        modalPhoto.style.removeProperty('opacity');
-      }, 180);
     });
     modal?.addEventListener('dblclick', (event) => event.preventDefault());
     modal?.addEventListener('wheel', (event) => {
