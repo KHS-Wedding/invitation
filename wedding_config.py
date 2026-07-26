@@ -7,22 +7,16 @@
 WEDDING = {
     'site': {
         'title': '김현수 · 김현선 결혼합니다.',
-        'description': '2027년 10월 9일 토요일 오후 1시, 호텔 ICC 1층 크리스탈홀',
-        # GitHub Pages 배포 주소
+        'description': '2027년 10월 30일 토요일 오후 1시 20분, 팔레드오페라 3층 트리아농홀',
         'url': 'https://khs-wedding.github.io/invitation/',
-        # 공유 서비스의 기존 캐시를 갱신하기 위한 주소입니다.
         'share_url': 'https://khs-wedding.github.io/invitation/',
-        # 커버사진 대신 사용할 별도 공유 미리보기 이미지입니다.
-        'share_image': 'static/share-preview-v8.png',
-        'asset_version': '22',
+        'share_image': 'static/share-preview-v15.png',
+        'asset_version': '15',
         'draft_notice': '',
     },
 
     'design': {
-        # 커버사진의 보이는 위치입니다. 두 번째 숫자를 낮추면 위쪽, 높이면 아래쪽이 더 보입니다.
-        # 예: '50% 20%', '50% 50%', '50% 70%'
         'cover_position': '50% 35%',
-        # 갤러리에서 처음 보여줄 사진 수입니다. 이후 사진은 '사진 더보기'로 펼칩니다.
         'gallery_initial_count': 9,
     },
 
@@ -35,10 +29,11 @@ WEDDING = {
 
     'wedding': {
         'section_title': '예식 안내',
-        'date': '2027-10-09',
-        'time': '13:00',
-        'display_date': '2027년 10월 9일 토요일',
-        'display_time': '오후 1시',
+        'date': '2027-10-30',
+        'time': '13:20',
+        'display_date': '2027년 10월 30일 토요일',
+        'display_time': '오후 1시 20분',
+        'display_fr': 'SAMEDI 30 OCTOBRE 2027 · 13 H 20',
     },
 
     'invitation': {
@@ -51,46 +46,53 @@ WEDDING = {
     },
 
     'venue': {
-        'name': '호텔 ICC',
-        'hall': '1층 크리스탈홀',
-        'address': '대전광역시 유성구 엑스포로123번길 55 호텔ICC',
-        'phone': '042-866-5100',
-        'latitude': 36.377062716,
-        'longitude': 127.392797164,
-        'naver_place_url': 'https://naver.me/Gdym9dt3',
-        'kakao_place_url': 'https://place.map.kakao.com/21086510',
-        'kakao_place_id': '21086510',
+        'name': '팔레드오페라',
+        'name_fr': 'PALAIS de OPERA',
+        'hall': '3층 트리아농홀',
+        'hall_fr': '3F · SALLE TRIANON',
+        'address': '대전광역시 서구 둔산남로 50',
+        'phone': '042-300-5000',
+        'latitude': None,
+        'longitude': None,
+        'naver_place_url': 'https://naver.me/xtgpraDu',
+        'kakao_place_url': 'https://kko.to/cXTtRExWQI',
+        'kakao_place_id': '',
     },
 
-    # 예식 확정 후 교통 소요시간과 버스 노선을 다시 확인하세요.
     'transport': {
-        'draft_label': '오시는 길',
+        'draft_label': '교통 안내',
         'items': [
             {
-                'title': '고속·시외버스',
+                'title': '버스 이용 시',
                 'lines': [
-                    '대전복합터미널: 택시 20분',
-                    '대전청사고속버스둔산정류소: 택시 10분 │ 버스 911번 20분',
-                    '대전청사시외버스둔산정류소: 택시 10분 │ 버스 618번 20분',
-                    '유성금호고속터미널: 택시 10분',
-                    '유성시외버스정류소: 택시 15분 │ 버스 121번 45분',
+                    '복합고속터미널 │ 승차 시 │ 간선 105, 106',
+                    '정부청사터미널 │ 승차 시 │ 간선 618',
+                    '세종특별자치시 │ 승차 시 │ 광역 M1',
+                    '둔산초등학교 │ 하차 시 │ 간선 618',
+                    '대전고용센터 │ 하차 시 │ 간선 105, 706',
+                    '대전광역시청 │ 하차 시 │ 간선 104, 106, 213, 617, 703, 707',
                 ],
             },
             {
-                'title': '기차',
+                'title': '지하철 이용 시',
                 'lines': [
-                    '대전역: 택시 20분 │ 버스 705번 50분',
-                    '서대전역: 택시 15분 │ 버스 618번 50분',
+                    '1호선 탄방역 2번, 3번 출구',
+                    '1호선 시청역 1번 출구',
+                ],
+            },
+            {
+                'title': '자가용 이용 시',
+                'lines': [
+                    '유성 I.C 또는 북대전 I.C 또는 대전 I.C → 시청방면 → 대전시청 남문 앞',
                 ],
             },
         ],
     },
 
     'parking': {
-        'title': '주차 안내',
+        'title': '주차 이용 시',
         'lines': [
-            '호텔 ICC 지상 및 지하 주차장을 이용하실 수 있습니다.',
-            '예식 당일 주차장이 다소 혼잡할 수 있는 점 너른 양해 부탁드립니다.',
+            '주차타워 이용',
         ],
     },
 
