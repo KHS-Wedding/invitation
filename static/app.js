@@ -165,11 +165,25 @@
   }
 
   function transportIcon(title = '') {
-    if (title.includes('버스')) return '🚌';
-    if (title.includes('지하철')) return '🚇';
-    if (title.includes('자가용')) return '🚗';
-    if (title.includes('주차')) return 'P';
-    if (title.includes('기차')) return '🚆';
+    if (title.includes('버스')) {
+      return `<svg viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="5" y="3.5" width="14" height="15" rx="3"></rect>
+        <path d="M7.5 7.5h9M8 13h.01M16 13h.01M8 18.5v2M16 18.5v2"></path>
+      </svg>`;
+    }
+    if (title.includes('지하철')) {
+      return `<svg viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="6" y="2.8" width="12" height="16.2" rx="3"></rect>
+        <path d="M8.5 7.2h7M9 14h.01M15 14h.01M8 19l-2 2M16 19l2 2"></path>
+      </svg>`;
+    }
+    if (title.includes('자가용')) {
+      return `<svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M5 11.5 7 6.8A2 2 0 0 1 8.8 5.5h6.4A2 2 0 0 1 17 6.8l2 4.7"></path>
+        <rect x="3.8" y="10.5" width="16.4" height="7.5" rx="2.2"></rect>
+        <path d="M7 14h.01M17 14h.01M6.5 18v2M17.5 18v2"></path>
+      </svg>`;
+    }
     return '•';
   }
 
