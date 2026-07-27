@@ -421,7 +421,10 @@
               <div class="modal-photo protected-photo" role="img" draggable="false"></div>
             </div>
             <div class="modal-counter" aria-live="polite"></div>
-            <div class="modal-dots" aria-label="사진 위치"></div>
+            <div class="modal-dots-window" aria-label="사진 위치">
+              <div class="modal-dots-track"></div>
+              <span class="modal-dot-indicator" aria-hidden="true"></span>
+            </div>
           </div>
           <button type="button" class="modal-nav modal-next" aria-label="다음 사진">›</button>
         </div>`);
@@ -503,17 +506,15 @@
     const modal = document.getElementById('gallery-modal');
     const modalPhoto = modal?.querySelector('.modal-photo');
     const modalCounter = modal?.querySelector('.modal-counter');
-    const modalDots = modal?.querySelector('.modal-dots');
-    const modalDotIndicator = modalDots?.querySelector('.modal-dot-indicator');
+    const modalDotsWindow = modal?.querySelector('.modal-dots-window');
+    const modalDots = modal?.querySelector('.modal-dots-track');
     let currentGalleryIndex = 0;
     let swipeStartX = null;
-    let dotIndicatorReady = false;
+    let dotRailReady = false;
 
     if (modalDots && gallery.length) {
-      modalDots.innerHTML = `
-        <span class="modal-dot-indicator" aria-hidden="true"></span>
-        ${gallery.map((_, index) => `
-          <button type="button" class="modal-dot" data-dot-index="${index}" aria-label="${index + 1}번째 사진"></button>`).join('')}`;
+      modalDots.innerHTML = gallery.map((_, index) => `
+        <button type="button" class="modal-dot" data-dot-index="${index}" aria-label="${index + 1}번째 사진"></button>`).join('');
     }
 
     const preloadAdjacent = () => {
@@ -526,7 +527,7 @@
     };
 
     const updateDots = () => {
-      if (!modalDots) return;
+      if (!modalDots || !modalDotsWindow) return;
 
       const dots = [...modalDots.querySelectorAll('.modal-dot')];
       dots.forEach((dot, index) => {
@@ -538,27 +539,23 @@
       const activeDot = dots[currentGalleryIndex];
       if (!activeDot) return;
 
-      if (modalDotIndicator) {
-        const indicatorWidth = modalDotIndicator.offsetWidth || 14;
-        const targetX = activeDot.offsetLeft + (activeDot.offsetWidth - indicatorWidth) / 2;
+      const moveRail = () => {
+        const activeCenter = activeDot.offsetLeft + (activeDot.offsetWidth / 2);
+        const windowCenter = modalDotsWindow.clientWidth / 2;
+        const translateX = windowCenter - activeCenter;
 
-        if (!dotIndicatorReady) {
-          modalDotIndicator.style.transition = 'none';
-          modalDotIndicator.style.transform = `translate3d(${targetX}px, -50%, 0)`;
-          void modalDotIndicator.offsetWidth;
-          modalDotIndicator.style.transition = '';
-          dotIndicatorReady = true;
+        if (!dotRailReady) {
+          modalDots.classList.add('is-positioning');
+          modalDots.style.transform = `translate3d(${translateX}px, 0, 0)`;
+          void modalDots.offsetWidth;
+          modalDots.classList.remove('is-positioning');
+          dotRailReady = true;
         } else {
-          modalDotIndicator.style.transform = `translate3d(${targetX}px, -50%, 0)`;
+          modalDots.style.transform = `translate3d(${translateX}px, 0, 0)`;
         }
-      }
+      };
 
-      const targetScrollLeft = activeDot.offsetLeft
-        - (modalDots.clientWidth - activeDot.offsetWidth) / 2;
-      modalDots.scrollTo({
-        left: Math.max(0, targetScrollLeft),
-        behavior: dotIndicatorReady ? 'smooth' : 'auto',
-      });
+      window.requestAnimationFrame(moveRail);
     };
 
     const updateGalleryModal = (index, direction = 0) => {
@@ -582,9 +579,10 @@
         image_index: Number(index) + 1,
         image_count: gallery.length,
       });
-      updateGalleryModal(index, 0);
+      dotRailReady = false;
       modal.hidden = false;
       document.body.classList.add('modal-open');
+      updateGalleryModal(index, 0);
       modal.querySelector('.modal-close')?.focus({ preventScroll: true });
     };
 
@@ -635,7 +633,7 @@
 
     window.addEventListener('resize', () => {
       if (!modal || modal.hidden) return;
-      dotIndicatorReady = false;
+      dotRailReady = false;
       updateDots();
     });
 
