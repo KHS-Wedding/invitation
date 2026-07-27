@@ -1038,56 +1038,16 @@ h3 {
 }
 
 
-/* v19: 손가락을 따라 움직이는 갤러리 */
-.modal-viewport {
-  position: relative;
-  width: 100%;
-  overflow: hidden;
-  touch-action: pan-y;
-  cursor: grab;
-  user-select: none;
-  -webkit-user-select: none;
-}
-
-.modal-viewport:active,
-.modal-track.is-dragging {
-  cursor: grabbing;
-}
-
-.modal-track {
-  display: flex;
-  flex: 1 1 auto;
-  width: 300%;
-  height: 100%;
-  min-height: 0;
-  transform: translate3d(-33.333333%, 0, 0);
-  will-change: transform;
-  backface-visibility: hidden;
-  -webkit-backface-visibility: hidden;
-}
-
-.modal-track .modal-photo {
-  flex: 0 0 33.333333%;
-  width: 33.333333%;
-  height: 100%;
-  min-height: 0;
-  opacity: 1;
-  transform: none;
-  animation: none !important;
-  background-position: center;
-  background-repeat: no-repeat;
-  background-size: contain;
-  pointer-events: none;
-  backface-visibility: hidden;
-  -webkit-backface-visibility: hidden;
-}
-
+/* v20: 기존 갤러리 유지 + 하단 위치 표시 부드러운 이동 */
 .modal-dots {
-  justify-content: flex-start;
-  padding-inline: calc(50% - 3px);
   scroll-behavior: smooth;
   scroll-snap-type: x proximity;
   -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.modal-dots::-webkit-scrollbar {
+  display: none;
 }
 
 .modal-dot {
@@ -1095,10 +1055,6 @@ h3 {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .modal-track {
-    transition-duration: 1ms !important;
-  }
-
   .modal-dots {
     scroll-behavior: auto;
   }

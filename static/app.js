@@ -418,11 +418,7 @@
           <button type="button" class="modal-nav modal-prev" aria-label="이전 사진">‹</button>
           <div class="modal-stage">
             <div class="modal-viewport">
-              <div class="modal-track" aria-live="polite">
-                <div class="modal-photo modal-photo-prev protected-photo" role="img" draggable="false"></div>
-                <div class="modal-photo modal-photo-current protected-photo" role="img" draggable="false"></div>
-                <div class="modal-photo modal-photo-next protected-photo" role="img" draggable="false"></div>
-              </div>
+              <div class="modal-photo protected-photo" role="img" draggable="false"></div>
             </div>
             <div class="modal-counter" aria-live="polite"></div>
             <div class="modal-dots" aria-label="사진 위치"></div>
@@ -497,7 +493,6 @@
       galleryToggle.querySelector('.gallery-toggle-label').textContent = nextExpanded ? '사진 접기' : '사진 더보기';
       galleryToggle.querySelector('.gallery-toggle-icon').textContent = nextExpanded ? '⌃' : '⌄';
       if (nextExpanded) {
-        trackEvent('gallery_more');
         observeLazyImages(document);
       } else {
         document.querySelector('.gallery-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -506,54 +501,23 @@
 
     const gallery = config.images.gallery || [];
     const modal = document.getElementById('gallery-modal');
-    const modalViewport = modal?.querySelector('.modal-viewport');
-    const modalTrack = modal?.querySelector('.modal-track');
-    const modalPrevPhoto = modal?.querySelector('.modal-photo-prev');
-    const modalCurrentPhoto = modal?.querySelector('.modal-photo-current');
-    const modalNextPhoto = modal?.querySelector('.modal-photo-next');
+    const modalPhoto = modal?.querySelector('.modal-photo');
     const modalCounter = modal?.querySelector('.modal-counter');
     const modalDots = modal?.querySelector('.modal-dots');
-
     let currentGalleryIndex = 0;
-    let pointerId = null;
-    let pointerStartX = 0;
-    let pointerCurrentX = 0;
-    let pointerStartTime = 0;
-    let isDraggingGallery = false;
-    let isAnimatingGallery = false;
-    let animationFallbackTimer = null;
-
-    const normalizeGalleryIndex = (index) => (
-      (index + gallery.length) % gallery.length
-    );
-
-    const baseTrackPosition = '-33.333333%';
-    const previousTrackPosition = '0%';
-    const nextTrackPosition = '-66.666667%';
+    let swipeStartX = null;
 
     if (modalDots && gallery.length) {
       modalDots.innerHTML = gallery.map((_, index) => `
         <button type="button" class="modal-dot" data-dot-index="${index}" aria-label="${index + 1}번째 사진"></button>`).join('');
     }
 
-    const backgroundImageValue = (src) => (
-      `url("${encodeURI(src).replaceAll('"', '%22')}")`
-    );
-
-    const setPhoto = (element, index) => {
-      if (!element || !gallery.length) return;
-      const normalized = normalizeGalleryIndex(index);
-      const image = gallery[normalized];
-      element.style.backgroundImage = backgroundImageValue(image.src);
-      element.setAttribute('aria-label', image.alt || `웨딩 사진 ${normalized + 1}`);
-    };
-
-    const preloadAround = (index = currentGalleryIndex) => {
+    const preloadAdjacent = () => {
       if (gallery.length < 2) return;
-      [-2, -1, 1, 2].forEach((offset) => {
+      [currentGalleryIndex - 1, currentGalleryIndex + 1].forEach((index) => {
+        const normalized = (index + gallery.length) % gallery.length;
         const preload = new Image();
-        preload.decoding = 'async';
-        preload.src = gallery[normalizeGalleryIndex(index + offset)].src;
+        preload.src = gallery[normalized].src;
       });
     };
 
@@ -564,83 +528,23 @@
         dot.classList.toggle('is-active', active);
         dot.setAttribute('aria-current', active ? 'true' : 'false');
       });
-      modalDots.querySelector('.modal-dot.is-active')?.scrollIntoView({
-        behavior: 'smooth',
-        block: 'nearest',
-        inline: 'center',
-      });
+      const activeDot = modalDots.querySelector('.modal-dot.is-active');
+      activeDot?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
     };
 
-    const setTrackPosition = (position, transition = 'none') => {
-      if (!modalTrack) return;
-      modalTrack.style.transition = transition;
-      modalTrack.style.transform = `translate3d(${position}, 0, 0)`;
-    };
+    const updateGalleryModal = (index, direction = 0) => {
+      if (!modal || !modalPhoto || !gallery.length) return;
+      currentGalleryIndex = (index + gallery.length) % gallery.length;
+      const image = gallery[currentGalleryIndex];
 
-    const renderGalleryTrack = () => {
-      if (!gallery.length || !modalTrack) return;
-      window.clearTimeout(animationFallbackTimer);
-      setPhoto(modalPrevPhoto, currentGalleryIndex - 1);
-      setPhoto(modalCurrentPhoto, currentGalleryIndex);
-      setPhoto(modalNextPhoto, currentGalleryIndex + 1);
-      setTrackPosition(baseTrackPosition);
-      if (modalCounter) {
-        modalCounter.textContent = `${currentGalleryIndex + 1} / ${gallery.length}`;
-      }
+      modalPhoto.classList.remove('slide-next', 'slide-prev');
+      void modalPhoto.offsetWidth;
+      modalPhoto.style.backgroundImage = `url("${encodeURI(image.src).replaceAll('"', '%22')}")`;
+      modalPhoto.setAttribute('aria-label', image.alt || `웨딩 사진 ${currentGalleryIndex + 1}`);
+      if (direction !== 0) modalPhoto.classList.add(direction > 0 ? 'slide-next' : 'slide-prev');
+      if (modalCounter) modalCounter.textContent = `${currentGalleryIndex + 1} / ${gallery.length}`;
       updateDots();
-      preloadAround();
-    };
-
-    const snapGalleryBack = () => {
-      if (!modalTrack) return;
-      setTrackPosition(
-        baseTrackPosition,
-        'transform 240ms cubic-bezier(.22,.72,.24,1)',
-      );
-    };
-
-    const slideToIndex = (targetIndex, requestedDirection = 0) => {
-      if (!modalTrack || !gallery.length || isAnimatingGallery) return;
-
-      const normalizedTarget = normalizeGalleryIndex(targetIndex);
-      if (normalizedTarget === currentGalleryIndex) {
-        snapGalleryBack();
-        return;
-      }
-
-      let direction = requestedDirection;
-      if (!direction) {
-        const forwardDistance = normalizeGalleryIndex(normalizedTarget - currentGalleryIndex);
-        const backwardDistance = normalizeGalleryIndex(currentGalleryIndex - normalizedTarget);
-        direction = forwardDistance <= backwardDistance ? 1 : -1;
-      }
-
-      if (direction > 0) {
-        setPhoto(modalNextPhoto, normalizedTarget);
-      } else {
-        setPhoto(modalPrevPhoto, normalizedTarget);
-      }
-
-      isAnimatingGallery = true;
-      const destination = direction > 0 ? nextTrackPosition : previousTrackPosition;
-      setTrackPosition(
-        destination,
-        'transform 320ms cubic-bezier(.22,.72,.24,1)',
-      );
-
-      let completed = false;
-      const complete = () => {
-        if (completed) return;
-        completed = true;
-        window.clearTimeout(animationFallbackTimer);
-        modalTrack.removeEventListener('transitionend', complete);
-        currentGalleryIndex = normalizedTarget;
-        isAnimatingGallery = false;
-        renderGalleryTrack();
-      };
-
-      modalTrack.addEventListener('transitionend', complete, { once: true });
-      animationFallbackTimer = window.setTimeout(complete, 420);
+      preloadAdjacent();
     };
 
     const openGalleryModal = (index) => {
@@ -649,8 +553,7 @@
         image_index: Number(index) + 1,
         image_count: gallery.length,
       });
-      currentGalleryIndex = normalizeGalleryIndex(index);
-      renderGalleryTrack();
+      updateGalleryModal(index, 0);
       modal.hidden = false;
       document.body.classList.add('modal-open');
       modal.querySelector('.modal-close')?.focus({ preventScroll: true });
@@ -660,91 +563,39 @@
       if (!modal) return;
       modal.hidden = true;
       document.body.classList.remove('modal-open');
-      pointerId = null;
-      isDraggingGallery = false;
-      modalTrack?.classList.remove('is-dragging');
-      renderGalleryTrack();
     };
 
     document.querySelectorAll('.gallery-item').forEach((button) => {
-      button.addEventListener('click', () => {
-        openGalleryModal(Number(button.dataset.galleryIndex || 0));
-      });
+      button.addEventListener('click', () => openGalleryModal(Number(button.dataset.galleryIndex || 0)));
     });
 
     modal?.querySelector('.modal-close')?.addEventListener('click', closeGalleryModal);
-    modal?.querySelector('.modal-prev')?.addEventListener('click', () => {
-      slideToIndex(currentGalleryIndex - 1, -1);
-    });
-    modal?.querySelector('.modal-next')?.addEventListener('click', () => {
-      slideToIndex(currentGalleryIndex + 1, 1);
-    });
-
+    modal?.querySelector('.modal-prev')?.addEventListener('click', () => updateGalleryModal(currentGalleryIndex - 1, -1));
+    modal?.querySelector('.modal-next')?.addEventListener('click', () => updateGalleryModal(currentGalleryIndex + 1, 1));
     modalDots?.querySelectorAll('.modal-dot').forEach((dot) => {
       dot.addEventListener('click', () => {
         const nextIndex = Number(dot.dataset.dotIndex || 0);
-        slideToIndex(nextIndex);
+        const direction = nextIndex >= currentGalleryIndex ? 1 : -1;
+        updateGalleryModal(nextIndex, direction);
       });
     });
-
     modal?.addEventListener('click', (event) => {
       if (event.target === modal) closeGalleryModal();
     });
-
-    modalViewport?.addEventListener('pointerdown', (event) => {
-      if (isAnimatingGallery || gallery.length < 2) return;
-      pointerId = event.pointerId;
-      pointerStartX = event.clientX;
-      pointerCurrentX = event.clientX;
-      pointerStartTime = performance.now();
-      isDraggingGallery = true;
-      modalTrack?.classList.add('is-dragging');
-      modalViewport.setPointerCapture?.(event.pointerId);
-      if (modalTrack) modalTrack.style.transition = 'none';
+    modal?.addEventListener('pointerdown', (event) => {
+      swipeStartX = event.clientX;
     });
-
-    modalViewport?.addEventListener('pointermove', (event) => {
-      if (!isDraggingGallery || event.pointerId !== pointerId || !modalTrack) return;
-      pointerCurrentX = event.clientX;
-      const distance = pointerCurrentX - pointerStartX;
-      modalTrack.style.transform = `translate3d(calc(${baseTrackPosition} + ${distance}px), 0, 0)`;
-    });
-
-    const finishGalleryDrag = (event) => {
-      if (!isDraggingGallery || event.pointerId !== pointerId) return;
-
-      const distance = pointerCurrentX - pointerStartX;
-      const elapsed = Math.max(performance.now() - pointerStartTime, 1);
-      const velocity = distance / elapsed;
-      const viewportWidth = Math.max(modalViewport?.clientWidth || 1, 1);
-      const distanceThreshold = Math.min(92, viewportWidth * 0.18);
-      const shouldMove = (
-        Math.abs(distance) >= distanceThreshold
-        || Math.abs(velocity) >= 0.48
-      );
+    modal?.addEventListener('pointerup', (event) => {
+      if (swipeStartX === null) return;
+      const distance = event.clientX - swipeStartX;
+      swipeStartX = null;
+      if (Math.abs(distance) < 45) return;
       const direction = distance < 0 ? 1 : -1;
-
-      isDraggingGallery = false;
-      pointerId = null;
-      modalTrack?.classList.remove('is-dragging');
-      modalViewport?.releasePointerCapture?.(event.pointerId);
-
-      if (shouldMove) {
-        slideToIndex(currentGalleryIndex + direction, direction);
-      } else {
-        snapGalleryBack();
-      }
-    };
-
-    modalViewport?.addEventListener('pointerup', finishGalleryDrag);
-    modalViewport?.addEventListener('pointercancel', (event) => {
-      if (event.pointerId !== pointerId) return;
-      isDraggingGallery = false;
-      pointerId = null;
-      modalTrack?.classList.remove('is-dragging');
-      snapGalleryBack();
+      updateGalleryModal(currentGalleryIndex + direction, direction);
     });
-
+    modal?.addEventListener('pointercancel', () => {
+      swipeStartX = null;
+    });
     modal?.addEventListener('dblclick', (event) => event.preventDefault());
     modal?.addEventListener('wheel', (event) => {
       if (event.ctrlKey) event.preventDefault();
@@ -756,8 +607,8 @@
     document.addEventListener('keydown', (event) => {
       if (!modal || modal.hidden) return;
       if (event.key === 'Escape') closeGalleryModal();
-      if (event.key === 'ArrowLeft') slideToIndex(currentGalleryIndex - 1, -1);
-      if (event.key === 'ArrowRight') slideToIndex(currentGalleryIndex + 1, 1);
+      if (event.key === 'ArrowLeft') updateGalleryModal(currentGalleryIndex - 1, -1);
+      if (event.key === 'ArrowRight') updateGalleryModal(currentGalleryIndex + 1, 1);
     });
 
     document.querySelectorAll('.account-toggle').forEach((button) => {
@@ -777,14 +628,7 @@
     });
 
     document.querySelectorAll('.copy-account').forEach((button) => {
-      button.addEventListener('click', () => {
-        trackEvent('account_copy', {
-          account_side: button.closest('.account-list')?.id === 'groom-accounts'
-            ? 'groom'
-            : 'bride',
-        });
-        copyText(button.dataset.account, '은행명과 계좌번호를 복사했습니다.');
-      });
+      button.addEventListener('click', () => copyText(button.dataset.account, '은행명과 계좌번호를 복사했습니다.'));
     });
 
     document.querySelectorAll('.protected-photo').forEach((photo) => {
