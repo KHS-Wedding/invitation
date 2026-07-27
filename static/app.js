@@ -504,12 +504,16 @@
     const modalPhoto = modal?.querySelector('.modal-photo');
     const modalCounter = modal?.querySelector('.modal-counter');
     const modalDots = modal?.querySelector('.modal-dots');
+    const modalDotIndicator = modalDots?.querySelector('.modal-dot-indicator');
     let currentGalleryIndex = 0;
     let swipeStartX = null;
+    let dotIndicatorReady = false;
 
     if (modalDots && gallery.length) {
-      modalDots.innerHTML = gallery.map((_, index) => `
-        <button type="button" class="modal-dot" data-dot-index="${index}" aria-label="${index + 1}번째 사진"></button>`).join('');
+      modalDots.innerHTML = `
+        <span class="modal-dot-indicator" aria-hidden="true"></span>
+        ${gallery.map((_, index) => `
+          <button type="button" class="modal-dot" data-dot-index="${index}" aria-label="${index + 1}번째 사진"></button>`).join('')}`;
     }
 
     const preloadAdjacent = () => {
@@ -523,13 +527,38 @@
 
     const updateDots = () => {
       if (!modalDots) return;
-      modalDots.querySelectorAll('.modal-dot').forEach((dot, index) => {
+
+      const dots = [...modalDots.querySelectorAll('.modal-dot')];
+      dots.forEach((dot, index) => {
         const active = index === currentGalleryIndex;
         dot.classList.toggle('is-active', active);
         dot.setAttribute('aria-current', active ? 'true' : 'false');
       });
-      const activeDot = modalDots.querySelector('.modal-dot.is-active');
-      activeDot?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+
+      const activeDot = dots[currentGalleryIndex];
+      if (!activeDot) return;
+
+      if (modalDotIndicator) {
+        const indicatorWidth = modalDotIndicator.offsetWidth || 14;
+        const targetX = activeDot.offsetLeft + (activeDot.offsetWidth - indicatorWidth) / 2;
+
+        if (!dotIndicatorReady) {
+          modalDotIndicator.style.transition = 'none';
+          modalDotIndicator.style.transform = `translate3d(${targetX}px, -50%, 0)`;
+          void modalDotIndicator.offsetWidth;
+          modalDotIndicator.style.transition = '';
+          dotIndicatorReady = true;
+        } else {
+          modalDotIndicator.style.transform = `translate3d(${targetX}px, -50%, 0)`;
+        }
+      }
+
+      const targetScrollLeft = activeDot.offsetLeft
+        - (modalDots.clientWidth - activeDot.offsetWidth) / 2;
+      modalDots.scrollTo({
+        left: Math.max(0, targetScrollLeft),
+        behavior: dotIndicatorReady ? 'smooth' : 'auto',
+      });
     };
 
     const updateGalleryModal = (index, direction = 0) => {
@@ -602,6 +631,12 @@
     }, { passive: false });
     ['gesturestart', 'gesturechange', 'gestureend'].forEach((eventName) => {
       modal?.addEventListener(eventName, (event) => event.preventDefault(), { passive: false });
+    });
+
+    window.addEventListener('resize', () => {
+      if (!modal || modal.hidden) return;
+      dotIndicatorReady = false;
+      updateDots();
     });
 
     document.addEventListener('keydown', (event) => {

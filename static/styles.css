@@ -1059,3 +1059,47 @@ h3 {
     scroll-behavior: auto;
   }
 }
+
+
+/* v21: 하단 사진 위치 표시를 부드럽게 이동하는 인디케이터 */
+.modal-dots {
+  position: relative;
+  justify-content: flex-start;
+  isolation: isolate;
+}
+
+.modal-dot {
+  position: relative;
+  z-index: 1;
+  width: 5px;
+  height: 5px;
+  background: rgba(255,255,255,.34);
+  transition: background-color 180ms ease, transform 180ms ease;
+}
+
+.modal-dot.is-active {
+  width: 5px;
+  background: rgba(255,255,255,.34);
+  transform: scale(1.08);
+}
+
+.modal-dot-indicator {
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  left: 0;
+  width: 14px;
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.94);
+  pointer-events: none;
+  transform: translate3d(0, -50%, 0);
+  transition: transform 300ms cubic-bezier(.22,.72,.24,1);
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modal-dot-indicator {
+    transition-duration: 1ms;
+  }
+}
