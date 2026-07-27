@@ -11,7 +11,7 @@ WEDDING = {
         'url': 'https://khs-wedding.github.io/invitation/',
         'share_url': 'https://khs-wedding.github.io/invitation/',
         'share_image': 'static/share-preview-v15.png',
-        'asset_version': '17',
+        'asset_version': '18',
         'draft_notice': '',
     },
 
