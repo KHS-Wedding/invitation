@@ -174,6 +174,7 @@
         ${gallery.map((image, index) => {
           const immediate = index < 3;
           const isExtra = index >= initialCount;
+          const thumbnailSource = image.thumbnail_src || image.src;
           return `
             <button
               type="button"
@@ -184,8 +185,8 @@
             >
               <img
                 class="gallery-photo protected-photo${immediate ? '' : ' lazy-photo'}"
-                src="${immediate ? escapeHtml(image.src) : lazyPlaceholder}"
-                ${immediate ? '' : `data-src="${escapeHtml(image.src)}"`}
+                src="${immediate ? escapeHtml(thumbnailSource) : lazyPlaceholder}"
+                ${immediate ? '' : `data-src="${escapeHtml(thumbnailSource)}"`}
                 alt="${escapeHtml(image.alt || `웨딩 사진 ${index + 1}`)}"
                 loading="${immediate ? 'eager' : 'lazy'}"
                 decoding="async"
@@ -421,10 +422,7 @@
               <div class="modal-photo protected-photo" role="img" draggable="false"></div>
             </div>
             <div class="modal-counter" aria-live="polite"></div>
-            <div class="modal-dots-window" aria-label="사진 위치">
-              <div class="modal-dots-track"></div>
-              <span class="modal-dot-indicator" aria-hidden="true"></span>
-            </div>
+            <div class="modal-dots" aria-label="사진 위치"></div>
           </div>
           <button type="button" class="modal-nav modal-next" aria-label="다음 사진">›</button>
         </div>`);
@@ -506,71 +504,97 @@
     const modal = document.getElementById('gallery-modal');
     const modalPhoto = modal?.querySelector('.modal-photo');
     const modalCounter = modal?.querySelector('.modal-counter');
-    const modalDotsWindow = modal?.querySelector('.modal-dots-window');
-    const modalDots = modal?.querySelector('.modal-dots-track');
+    const modalDots = modal?.querySelector('.modal-dots');
     let currentGalleryIndex = 0;
     let swipeStartX = null;
-    let dotRailReady = false;
+    let swipeCurrentX = null;
+    let dotScrubPointerId = null;
+    let suppressNextDotClick = false;
+    let modalImageRequestId = 0;
+    const galleryImageCache = new Map();
 
     if (modalDots && gallery.length) {
       modalDots.innerHTML = gallery.map((_, index) => `
         <button type="button" class="modal-dot" data-dot-index="${index}" aria-label="${index + 1}번째 사진"></button>`).join('');
     }
 
-    const preloadAdjacent = () => {
-      if (gallery.length < 2) return;
-      [currentGalleryIndex - 1, currentGalleryIndex + 1].forEach((index) => {
-        const normalized = (index + gallery.length) % gallery.length;
-        const preload = new Image();
-        preload.src = gallery[normalized].src;
+    const preloadGalleryImage = (index) => {
+      if (!gallery.length) return Promise.resolve();
+      const normalized = (index + gallery.length) % gallery.length;
+      const source = gallery[normalized].src;
+      if (galleryImageCache.has(source)) return galleryImageCache.get(source);
+
+      const image = new Image();
+      image.decoding = 'async';
+      const ready = new Promise((resolve) => {
+        image.addEventListener('load', () => {
+          const decoded = typeof image.decode === 'function'
+            ? image.decode()
+            : Promise.resolve();
+          decoded.catch(() => {}).finally(resolve);
+        }, { once: true });
+        image.addEventListener('error', resolve, { once: true });
       });
+      image.src = source;
+      galleryImageCache.set(source, ready);
+      return ready;
+    };
+
+    const preloadAdjacent = (centerIndex) => {
+      if (gallery.length < 2) return;
+      const prepare = () => {
+        [1, -1].forEach((offset) => {
+          preloadGalleryImage(centerIndex + offset);
+        });
+      };
+      if ('requestIdleCallback' in window) {
+        window.requestIdleCallback(prepare, { timeout: 900 });
+      } else {
+        window.setTimeout(prepare, 180);
+      }
     };
 
     const updateDots = () => {
-      if (!modalDots || !modalDotsWindow) return;
-
-      const dots = [...modalDots.querySelectorAll('.modal-dot')];
-      dots.forEach((dot, index) => {
+      if (!modalDots) return;
+      modalDots.querySelectorAll('.modal-dot').forEach((dot, index) => {
         const active = index === currentGalleryIndex;
         dot.classList.toggle('is-active', active);
         dot.setAttribute('aria-current', active ? 'true' : 'false');
       });
-
-      const activeDot = dots[currentGalleryIndex];
-      if (!activeDot) return;
-
-      const moveRail = () => {
-        const activeCenter = activeDot.offsetLeft + (activeDot.offsetWidth / 2);
-        const windowCenter = modalDotsWindow.clientWidth / 2;
-        const translateX = windowCenter - activeCenter;
-
-        if (!dotRailReady) {
-          modalDots.classList.add('is-positioning');
-          modalDots.style.transform = `translate3d(${translateX}px, 0, 0)`;
-          void modalDots.offsetWidth;
-          modalDots.classList.remove('is-positioning');
-          dotRailReady = true;
-        } else {
-          modalDots.style.transform = `translate3d(${translateX}px, 0, 0)`;
-        }
-      };
-
-      window.requestAnimationFrame(moveRail);
     };
 
-    const updateGalleryModal = (index, direction = 0) => {
+    const updateGalleryModal = (index, direction = 0, mode = 'normal') => {
       if (!modal || !modalPhoto || !gallery.length) return;
       currentGalleryIndex = (index + gallery.length) % gallery.length;
       const image = gallery[currentGalleryIndex];
+      const previewSource = image.thumbnail_src || image.src;
+      const requestId = ++modalImageRequestId;
 
-      modalPhoto.classList.remove('slide-next', 'slide-prev');
+      modalPhoto.classList.remove('slide-next', 'slide-prev', 'scrub-change', 'is-dragging', 'is-settling');
+      modalPhoto.style.removeProperty('transform');
+      modalPhoto.style.removeProperty('opacity');
       void modalPhoto.offsetWidth;
-      modalPhoto.style.backgroundImage = `url("${encodeURI(image.src).replaceAll('"', '%22')}")`;
+      modalPhoto.style.backgroundImage = `url("${encodeURI(previewSource).replaceAll('"', '%22')}")`;
       modalPhoto.setAttribute('aria-label', image.alt || `웨딩 사진 ${currentGalleryIndex + 1}`);
-      if (direction !== 0) modalPhoto.classList.add(direction > 0 ? 'slide-next' : 'slide-prev');
+      if (mode === 'scrub') {
+        modalPhoto.classList.add('scrub-change');
+      } else if (direction !== 0) {
+        modalPhoto.classList.add(direction > 0 ? 'slide-next' : 'slide-prev');
+      }
       if (modalCounter) modalCounter.textContent = `${currentGalleryIndex + 1} / ${gallery.length}`;
       updateDots();
-      preloadAdjacent();
+
+      const currentReady = preloadGalleryImage(currentGalleryIndex);
+      if (previewSource !== image.src) {
+        currentReady.then(() => {
+          if (requestId !== modalImageRequestId) return;
+          modalPhoto.style.backgroundImage = `url("${encodeURI(image.src).replaceAll('"', '%22')}")`;
+        });
+      }
+      currentReady.then(() => {
+        if (requestId !== modalImageRequestId) return;
+        preloadAdjacent(currentGalleryIndex);
+      });
     };
 
     const openGalleryModal = (index) => {
@@ -579,49 +603,153 @@
         image_index: Number(index) + 1,
         image_count: gallery.length,
       });
-      dotRailReady = false;
+      updateGalleryModal(index, 0);
       modal.hidden = false;
       document.body.classList.add('modal-open');
-      updateGalleryModal(index, 0);
       modal.querySelector('.modal-close')?.focus({ preventScroll: true });
     };
 
     const closeGalleryModal = () => {
       if (!modal) return;
+      modalImageRequestId += 1;
       modal.hidden = true;
       document.body.classList.remove('modal-open');
     };
 
     document.querySelectorAll('.gallery-item').forEach((button) => {
+      button.addEventListener('pointerdown', () => {
+        preloadGalleryImage(Number(button.dataset.galleryIndex || 0));
+      }, { passive: true });
       button.addEventListener('click', () => openGalleryModal(Number(button.dataset.galleryIndex || 0)));
     });
 
     modal?.querySelector('.modal-close')?.addEventListener('click', closeGalleryModal);
     modal?.querySelector('.modal-prev')?.addEventListener('click', () => updateGalleryModal(currentGalleryIndex - 1, -1));
     modal?.querySelector('.modal-next')?.addEventListener('click', () => updateGalleryModal(currentGalleryIndex + 1, 1));
-    modalDots?.querySelectorAll('.modal-dot').forEach((dot) => {
-      dot.addEventListener('click', () => {
-        const nextIndex = Number(dot.dataset.dotIndex || 0);
-        const direction = nextIndex >= currentGalleryIndex ? 1 : -1;
-        updateGalleryModal(nextIndex, direction);
-      });
+
+    const dotIndexAtPosition = (clientX) => {
+      if (!modalDots || !gallery.length) return 0;
+      const rect = modalDots.getBoundingClientRect();
+      const position = Math.min(Math.max(clientX - rect.left, 0), rect.width);
+      return Math.min(gallery.length - 1, Math.floor((position / rect.width) * gallery.length));
+    };
+
+    const scrubToPosition = (clientX) => {
+      const nextIndex = dotIndexAtPosition(clientX);
+      if (nextIndex === currentGalleryIndex) return;
+      updateGalleryModal(nextIndex, 0, 'scrub');
+    };
+
+    modalDots?.addEventListener('pointerdown', (event) => {
+      if (event.pointerType === 'mouse' && event.button !== 0) return;
+      event.stopPropagation();
+      dotScrubPointerId = event.pointerId;
+      suppressNextDotClick = true;
+      modalDots.setPointerCapture?.(event.pointerId);
+      modalDots.classList.add('is-scrubbing');
+      scrubToPosition(event.clientX);
     });
+
+    modalDots?.addEventListener('pointermove', (event) => {
+      if (event.pointerId !== dotScrubPointerId) return;
+      event.stopPropagation();
+      scrubToPosition(event.clientX);
+    });
+
+    const finishDotScrub = (event) => {
+      if (!modalDots || event.pointerId !== dotScrubPointerId) return;
+      event.stopPropagation();
+      scrubToPosition(event.clientX);
+      modalDots.releasePointerCapture?.(event.pointerId);
+      modalDots.classList.remove('is-scrubbing');
+      dotScrubPointerId = null;
+    };
+
+    modalDots?.addEventListener('pointerup', finishDotScrub);
+    modalDots?.addEventListener('pointercancel', (event) => {
+      if (event.pointerId !== dotScrubPointerId) return;
+      event.stopPropagation();
+      modalDots.classList.remove('is-scrubbing');
+      dotScrubPointerId = null;
+    });
+
+    modalDots?.addEventListener('click', (event) => {
+      event.stopPropagation();
+      if (suppressNextDotClick) {
+        suppressNextDotClick = false;
+        event.preventDefault();
+        return;
+      }
+      const dot = event.target.closest('.modal-dot');
+      if (!dot) return;
+      const nextIndex = Number(dot.dataset.dotIndex || 0);
+      if (nextIndex === currentGalleryIndex) return;
+      const direction = nextIndex > currentGalleryIndex ? 1 : -1;
+      updateGalleryModal(nextIndex, direction);
+    });
+
     modal?.addEventListener('click', (event) => {
       if (event.target === modal) closeGalleryModal();
     });
     modal?.addEventListener('pointerdown', (event) => {
+      if (event.target.closest('.modal-dots')) return;
+      if (!event.target.closest('.modal-viewport')) return;
       swipeStartX = event.clientX;
+      swipeCurrentX = event.clientX;
+      modalPhoto?.classList.remove('slide-next', 'slide-prev', 'scrub-change', 'is-settling');
+      modalPhoto?.classList.add('is-dragging');
+    });
+    modal?.addEventListener('pointermove', (event) => {
+      if (swipeStartX === null || !modalPhoto) return;
+      swipeCurrentX = event.clientX;
+      const distance = (swipeCurrentX - swipeStartX) * .58;
+      const fade = 1 - Math.min(Math.abs(distance) / 420, .22);
+      modalPhoto.style.transform = `translate3d(${distance}px, 0, 0)`;
+      modalPhoto.style.opacity = String(fade);
     });
     modal?.addEventListener('pointerup', (event) => {
+      if (event.target.closest('.modal-dots')) return;
       if (swipeStartX === null) return;
       const distance = event.clientX - swipeStartX;
       swipeStartX = null;
-      if (Math.abs(distance) < 45) return;
+      swipeCurrentX = null;
+      if (!modalPhoto) return;
+
+      modalPhoto.classList.remove('is-dragging');
+      modalPhoto.classList.add('is-settling');
+
+      if (Math.abs(distance) < 45) {
+        modalPhoto.style.transform = 'translate3d(0, 0, 0)';
+        modalPhoto.style.opacity = '1';
+        window.setTimeout(() => {
+          modalPhoto.classList.remove('is-settling');
+          modalPhoto.style.removeProperty('transform');
+          modalPhoto.style.removeProperty('opacity');
+        }, 180);
+        return;
+      }
+
       const direction = distance < 0 ? 1 : -1;
-      updateGalleryModal(currentGalleryIndex + direction, direction);
+      preloadGalleryImage(currentGalleryIndex + direction);
+      modalPhoto.style.transform = `translate3d(${-direction * 70}px, 0, 0)`;
+      modalPhoto.style.opacity = '.42';
+      window.setTimeout(() => {
+        updateGalleryModal(currentGalleryIndex + direction, direction);
+      }, 120);
     });
     modal?.addEventListener('pointercancel', () => {
       swipeStartX = null;
+      swipeCurrentX = null;
+      if (!modalPhoto) return;
+      modalPhoto.classList.remove('is-dragging');
+      modalPhoto.classList.add('is-settling');
+      modalPhoto.style.transform = 'translate3d(0, 0, 0)';
+      modalPhoto.style.opacity = '1';
+      window.setTimeout(() => {
+        modalPhoto.classList.remove('is-settling');
+        modalPhoto.style.removeProperty('transform');
+        modalPhoto.style.removeProperty('opacity');
+      }, 180);
     });
     modal?.addEventListener('dblclick', (event) => event.preventDefault());
     modal?.addEventListener('wheel', (event) => {
@@ -629,12 +757,6 @@
     }, { passive: false });
     ['gesturestart', 'gesturechange', 'gestureend'].forEach((eventName) => {
       modal?.addEventListener(eventName, (event) => event.preventDefault(), { passive: false });
-    });
-
-    window.addEventListener('resize', () => {
-      if (!modal || modal.hidden) return;
-      dotRailReady = false;
-      updateDots();
     });
 
     document.addEventListener('keydown', (event) => {

@@ -1061,95 +1061,151 @@ h3 {
 }
 
 
-/* v22: 하단 선택 표시를 정확히 중앙 고정하고 점 레일을 부드럽게 이동 */
-.modal-stage,
-.modal-viewport,
-.modal-photo {
-  margin-inline: auto;
+/* v23: sjw-kha-wedding 갤러리 동작과 동일하게 적용 */
+.modal-stage {
+  width: min(100%, 760px);
+  height: min(84dvh, 880px);
+  margin-right: auto;
+  margin-left: auto;
 }
 
-.modal-dots-window {
-  position: relative;
-  width: min(72vw, 330px);
-  height: 24px;
-  margin: 4px auto 0;
-  overflow: hidden;
-  contain: layout paint;
-}
-
-.modal-dots-track {
-  position: absolute;
-  top: 0;
-  left: 0;
+.modal-viewport {
   display: flex;
-  width: max-content;
-  height: 24px;
+  flex: 1 1 auto;
+  min-height: 0;
   align-items: center;
-  gap: 7px;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.modal-photo {
+  flex: 1 1 auto;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
+  transform: none;
+  opacity: 1;
+  will-change: auto;
+  image-rendering: auto;
+}
+
+.modal-photo.slide-next {
+  animation: gallery-slide-next .28s ease both;
+  animation-fill-mode: none;
+}
+
+.modal-photo.slide-prev {
+  animation: gallery-slide-prev .28s ease both;
+  animation-fill-mode: none;
+}
+
+@keyframes gallery-slide-next {
+  from { transform: translateX(22px); opacity: .45; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes gallery-slide-prev {
+  from { transform: translateX(-22px); opacity: .45; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+.modal-counter {
+  align-self: center;
+  width: 100%;
+  padding-top: 13px;
+  font-size: 10px;
+  letter-spacing: .09em;
+  text-align: center;
+}
+
+.modal-dots {
+  display: flex;
+  align-self: center;
+  width: min(82vw, 360px);
+  max-width: 100%;
+  min-height: 30px;
+  align-items: stretch;
+  justify-content: stretch;
+  gap: 0;
+  margin: 3px auto 0;
   padding: 0;
-  transform: translate3d(0, 0, 0);
-  transition: transform 380ms cubic-bezier(.22,.72,.24,1);
-  will-change: transform;
+  overflow: visible;
+  touch-action: none;
+  cursor: grab;
+  scroll-behavior: auto;
+  scroll-snap-type: none;
 }
 
-.modal-dots-track.is-positioning {
-  transition: none;
+.modal-dots.is-scrubbing {
+  cursor: grabbing;
 }
 
-.modal-dots-track .modal-dot {
-  flex: 0 0 5px;
-  width: 5px !important;
-  height: 5px;
+.modal-dot,
+.modal-dot.is-active {
+  position: relative;
+  flex: 1 1 0;
+  width: auto;
+  min-width: 0;
+  height: 30px;
   margin: 0;
   padding: 0;
-  border: 0 !important;
-  outline: 0 !important;
-  border-radius: 999px;
-  background: rgba(255,255,255,.35) !important;
-  box-shadow: none !important;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   appearance: none;
   -webkit-appearance: none;
-  transform: none !important;
-  transition: background-color 180ms ease;
+  cursor: pointer;
+  scroll-snap-align: none;
 }
 
-.modal-dots-track .modal-dot.is-active {
-  width: 5px !important;
-  background: transparent !important;
-  box-shadow: none !important;
-}
-
-.modal-dot-indicator {
+.modal-dot::before {
+  content: '';
   position: absolute;
-  z-index: 3;
   top: 50%;
   left: 50%;
-  width: 15px;
+  width: 5px;
   height: 5px;
-  border-radius: 999px;
-  background: rgba(255,255,255,.96);
   transform: translate(-50%, -50%);
-  pointer-events: none;
-  box-shadow: 0 0 0 1px rgba(255,255,255,.05);
+  border-radius: 999px;
+  background: rgba(255,255,255,.35);
+  transition: width .18s ease, background .18s ease, transform .18s ease;
 }
 
-/* 예전 스크롤형 점 영역 스타일 무효화 */
-.modal-dots {
-  display: none !important;
+.modal-dot.is-active::before {
+  width: 14px;
+  background: rgba(255,255,255,.92);
+}
+
+.modal-dots.is-scrubbing .modal-dot.is-active::before {
+  transform: translate(-50%, -50%) scale(1.06);
+}
+
+.modal-photo.is-dragging {
+  transition: none;
+  will-change: transform, opacity;
+}
+
+.modal-photo.is-settling {
+  transition:
+    transform .16s cubic-bezier(.22, .7, .25, 1),
+    opacity .16s ease;
+  will-change: transform, opacity;
+}
+
+.modal-photo.scrub-change {
+  animation: gallery-scrub-change .16s ease;
+}
+
+@keyframes gallery-scrub-change {
+  from { opacity: .72; }
+  to { opacity: 1; }
 }
 
 @media (max-width: 360px) {
-  .modal-dots-window {
-    width: min(74vw, 280px);
-  }
-
-  .modal-dots-track {
-    gap: 6px;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .modal-dots-track {
-    transition-duration: 1ms;
+  .modal-dots {
+    width: min(84vw, 310px);
   }
 }
