@@ -36,6 +36,7 @@ STATIC = ROOT / 'static'
 ASSETS = ROOT / 'assets'
 PHOTOS = ROOT / 'photos'
 SUPPORTED_IMAGES = {'.jpg', '.jpeg', '.png', '.webp', '.avif', '.gif', '.svg'}
+OPTIMIZABLE_IMAGES = {'.jpg', '.jpeg', '.png', '.webp'}
 
 
 def natural_key(path: Path) -> list[Any]:
@@ -58,68 +59,101 @@ def copy_file(source: Path, relative_target: Path) -> str:
     return relative_target.as_posix()
 
 
-def optimize_photo(
+def optimize_image(
     source: Path,
-    target_folder: Path,
+    relative_target: Path,
     *,
-    max_dimension: int,
+    max_edge: int,
     quality: int,
 ) -> str:
-    """사진을 모바일용 중간화질 WebP로 변환합니다.
+    if Image is None or ImageOps is None:
+        raise RuntimeError('사진 최적화에 Pillow가 필요합니다.')
 
-    Pillow가 설치되어 있지 않거나 SVG/GIF처럼 변환이 적절하지 않은 파일은
-    기존 파일을 그대로 복사해 배포가 중단되지 않도록 합니다.
-    """
-    if Image is None or source.suffix.lower() in {'.svg', '.gif'}:
-        return copy_file(source, target_folder / source.name)
-
-    target_name = f'{source.stem}.webp'
-    target = DIST / target_folder / target_name
+    target = DIST / relative_target
     target.parent.mkdir(parents=True, exist_ok=True)
 
-    try:
-        with Image.open(source) as opened:
-            image = ImageOps.exif_transpose(opened) if ImageOps else opened.copy()
-            if image.mode not in {'RGB', 'RGBA'}:
-                image = image.convert('RGB')
+    with Image.open(source) as opened:
+        if getattr(opened, 'is_animated', False):
+            raise ValueError('움직이는 이미지는 WebP 최적화 대상에서 제외합니다.')
 
-            image.thumbnail(
-                (max_dimension, max_dimension),
-                Image.Resampling.LANCZOS,
+        normalized = ImageOps.exif_transpose(opened)
+        if normalized.mode in {'RGBA', 'LA'} or 'transparency' in normalized.info:
+            rgba = normalized.convert('RGBA')
+            prepared = Image.new('RGB', rgba.size, '#ffffff')
+            prepared.paste(rgba, mask=rgba.getchannel('A'))
+        else:
+            prepared = normalized.convert('RGB')
+
+        prepared.thumbnail(
+            (max_edge, max_edge),
+            Image.Resampling.LANCZOS,
+            reducing_gap=3.0,
+        )
+        prepared.save(
+            target,
+            format='WEBP',
+            quality=quality,
+            method=6,
+            optimize=True,
+        )
+
+    return relative_target.as_posix()
+
+
+def optimize_or_copy(
+    source: Path,
+    relative_target: Path,
+    *,
+    max_edge: int,
+    quality: int,
+) -> str:
+    if source.suffix.lower() in OPTIMIZABLE_IMAGES:
+        try:
+            return optimize_image(
+                source,
+                relative_target,
+                max_edge=max_edge,
+                quality=quality,
             )
+        except Exception as error:
+            print(f'[경고] {source.name} 최적화 실패, 원본을 사용합니다: {error}')
 
-            save_options = {
-                'format': 'WEBP',
-                'quality': quality,
-                'method': 6,
-            }
-            if image.mode == 'RGBA':
-                save_options['lossless'] = False
-
-            image.save(target, **save_options)
-    except Exception as error:
-        print(f'[사진 최적화 건너뜀] {source.name}: {error}')
-        return copy_file(source, target_folder / source.name)
-
-    return (target_folder / target_name).as_posix()
+    fallback_target = relative_target.with_suffix(source.suffix.lower())
+    return copy_file(source, fallback_target)
 
 
 def build_image_data() -> dict[str, Any]:
     cover_candidates = image_files(PHOTOS / 'cover')
     cover = ''
     if cover_candidates:
-        cover = optimize_photo(cover_candidates[0], Path('images/cover'), max_dimension=1600, quality=72)
+        cover = optimize_or_copy(
+            cover_candidates[0],
+            Path('images/cover/cover.webp'),
+            max_edge=1600,
+            quality=72,
+        )
 
     gallery = []
     for index, image in enumerate(image_files(PHOTOS / 'gallery'), start=1):
-        relative = optimize_photo(image, Path('images/gallery'), max_dimension=1280, quality=68)
+        file_number = f'{index:02d}'
+        full = optimize_or_copy(
+            image,
+            Path(f'images/gallery/full/{file_number}.webp'),
+            max_edge=1280,
+            quality=72,
+        )
+        thumbnail = optimize_or_copy(
+            image,
+            Path(f'images/gallery/thumb/{file_number}.webp'),
+            max_edge=480,
+            quality=68,
+        )
         gallery.append({
-            'src': relative,
+            'src': full,
+            'thumbnail_src': thumbnail,
             'alt': f'김현수와 김현선의 웨딩 사진 {index}',
         })
 
-    # 약도는 사용자가 photos/map 폴더에 이미지를 넣은 경우에만 표시합니다.
-    # 기본 임시 약도는 생성하지 않습니다.
     map_candidates = image_files(PHOTOS / 'map')
     map_image = ''
     if map_candidates:
