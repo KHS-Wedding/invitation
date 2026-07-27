@@ -108,11 +108,11 @@ def build_image_data() -> dict[str, Any]:
     cover_candidates = image_files(PHOTOS / 'cover')
     cover = ''
     if cover_candidates:
-        cover = optimize_photo(cover_candidates[0], Path('images/cover'), max_dimension=1800, quality=76)
+        cover = optimize_photo(cover_candidates[0], Path('images/cover'), max_dimension=1600, quality=72)
 
     gallery = []
     for index, image in enumerate(image_files(PHOTOS / 'gallery'), start=1):
-        relative = optimize_photo(image, Path('images/gallery'), max_dimension=1600, quality=72)
+        relative = optimize_photo(image, Path('images/gallery'), max_dimension=1280, quality=68)
         gallery.append({
             'src': relative,
             'alt': f'김현수와 김현선의 웨딩 사진 {index}',
@@ -137,12 +137,19 @@ def build_image_data() -> dict[str, Any]:
 def derive_links(config: dict[str, Any]) -> None:
     venue = config['venue']
     kakao_place_id = str(venue.get('kakao_place_id', '')).strip()
+    latitude = venue.get('latitude')
+    longitude = venue.get('longitude')
+
     if kakao_place_id:
         venue['kakao_directions_url'] = f'https://map.kakao.com/link/to/{quote(kakao_place_id)}'
-    else:
+    elif latitude is not None and longitude is not None:
         name = quote(str(venue['name']))
         venue['kakao_directions_url'] = (
-            f"https://map.kakao.com/link/to/{name},{venue['latitude']},{venue['longitude']}"
+            f"https://map.kakao.com/link/to/{name},{latitude},{longitude}"
+        )
+    else:
+        venue['kakao_directions_url'] = str(
+            venue.get('kakao_place_url', '#')
         )
 
     # 네이버는 사용자가 제공한 장소 링크를 기본 연결로 사용합니다.
