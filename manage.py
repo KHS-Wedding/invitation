@@ -14,6 +14,12 @@ import json
 import re
 import shutil
 import sys
+
+try:
+    from PIL import Image, ImageOps
+except ImportError:
+    Image = None
+    ImageOps = None
 import threading
 import webbrowser
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -52,18 +58,64 @@ def copy_file(source: Path, relative_target: Path) -> str:
     return relative_target.as_posix()
 
 
+def optimize_photo(
+    source: Path,
+    target_folder: Path,
+    *,
+    max_dimension: int,
+    quality: int,
+) -> str:
+    """사진을 모바일용 중간화질 WebP로 변환합니다.
+
+    Pillow가 설치되어 있지 않거나 SVG/GIF처럼 변환이 적절하지 않은 파일은
+    기존 파일을 그대로 복사해 배포가 중단되지 않도록 합니다.
+    """
+    if Image is None or source.suffix.lower() in {'.svg', '.gif'}:
+        return copy_file(source, target_folder / source.name)
+
+    target_name = f'{source.stem}.webp'
+    target = DIST / target_folder / target_name
+    target.parent.mkdir(parents=True, exist_ok=True)
+
+    try:
+        with Image.open(source) as opened:
+            image = ImageOps.exif_transpose(opened) if ImageOps else opened.copy()
+            if image.mode not in {'RGB', 'RGBA'}:
+                image = image.convert('RGB')
+
+            image.thumbnail(
+                (max_dimension, max_dimension),
+                Image.Resampling.LANCZOS,
+            )
+
+            save_options = {
+                'format': 'WEBP',
+                'quality': quality,
+                'method': 6,
+            }
+            if image.mode == 'RGBA':
+                save_options['lossless'] = False
+
+            image.save(target, **save_options)
+    except Exception as error:
+        print(f'[사진 최적화 건너뜀] {source.name}: {error}')
+        return copy_file(source, target_folder / source.name)
+
+    return (target_folder / target_name).as_posix()
+
+
 def build_image_data() -> dict[str, Any]:
     cover_candidates = image_files(PHOTOS / 'cover')
     cover = ''
     if cover_candidates:
-        cover = copy_file(cover_candidates[0], Path('images/cover') / cover_candidates[0].name)
+        cover = optimize_photo(cover_candidates[0], Path('images/cover'), max_dimension=1800, quality=76)
 
     gallery = []
     for index, image in enumerate(image_files(PHOTOS / 'gallery'), start=1):
-        relative = copy_file(image, Path('images/gallery') / image.name)
+        relative = optimize_photo(image, Path('images/gallery'), max_dimension=1600, quality=72)
         gallery.append({
             'src': relative,
-            'alt': f"{WEDDING['couple']['groom']}와 {WEDDING['couple']['bride']}의 웨딩 사진 {index}",
+            'alt': f'김현수와 김현선의 웨딩 사진 {index}',
         })
 
     # 약도는 사용자가 photos/map 폴더에 이미지를 넣은 경우에만 표시합니다.
@@ -75,7 +127,7 @@ def build_image_data() -> dict[str, Any]:
 
     return {
         'cover': cover,
-        'cover_alt': f"{WEDDING['couple']['groom']}와 {WEDDING['couple']['bride']}의 웨딩 대표 사진",
+        'cover_alt': '김현수와 김현선의 웨딩 대표 사진',
         'gallery': gallery,
         'map_image': map_image,
         'map_is_draft': False,
@@ -84,8 +136,18 @@ def build_image_data() -> dict[str, Any]:
 
 def derive_links(config: dict[str, Any]) -> None:
     venue = config['venue']
-    venue['naver_directions_url'] = venue.get('naver_place_url', '')
-    venue['kakao_directions_url'] = venue.get('kakao_place_url', '')
+    kakao_place_id = str(venue.get('kakao_place_id', '')).strip()
+    if kakao_place_id:
+        venue['kakao_directions_url'] = f'https://map.kakao.com/link/to/{quote(kakao_place_id)}'
+    else:
+        name = quote(str(venue['name']))
+        venue['kakao_directions_url'] = (
+            f"https://map.kakao.com/link/to/{name},{venue['latitude']},{venue['longitude']}"
+        )
+
+    # 네이버는 사용자가 제공한 장소 링크를 기본 연결로 사용합니다.
+    # 해당 링크에서 길찾기를 바로 선택할 수 있으며 앱·모바일웹 환경에 따라 연결됩니다.
+    venue['naver_directions_url'] = venue['naver_place_url']
 
 
 def build() -> Path:
