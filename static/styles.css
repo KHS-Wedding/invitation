@@ -1036,3 +1036,64 @@ h3 {
   letter-spacing: -.01em;
   word-break: keep-all;
 }
+
+
+/* v18: 손가락을 따라 움직이는 갤러리 스와이프 */
+.modal-viewport {
+  position: relative;
+  width: 100%;
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: grab;
+}
+
+.modal-viewport:active {
+  cursor: grabbing;
+}
+
+.modal-track {
+  display: flex;
+  width: 300%;
+  height: 100%;
+  transform: translate3d(-100%, 0, 0);
+  will-change: transform;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.modal-track.is-dragging {
+  cursor: grabbing;
+}
+
+.modal-track .modal-photo {
+  flex: 0 0 33.333333%;
+  width: 33.333333%;
+  height: 100%;
+  opacity: 1;
+  transform: none;
+  animation: none !important;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
+  pointer-events: none;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.modal-dots {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x proximity;
+}
+
+.modal-dot {
+  scroll-snap-align: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modal-track,
+  .modal-dots {
+    scroll-behavior: auto;
+  }
+}
