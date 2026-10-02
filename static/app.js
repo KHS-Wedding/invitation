@@ -8,6 +8,13 @@
   const lazyPlaceholder = 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=';
   let lazyImageObserver = null;
 
+  if (!config || !app || !config.site || !config.couple || !config.wedding
+      || !config.venue || !config.images || !Array.isArray(config.invitation?.lines)) {
+    const message = document.getElementById('loading-message');
+    if (message) message.textContent = '청첩장을 불러오지 못했습니다. 예식 안내를 확인하시거나 다시 불러와 주세요.';
+    return;
+  }
+
   const analyticsConfig = config.analytics || {};
   const analyticsMeasurementId = String(analyticsConfig.measurement_id || '').trim();
   const analyticsEnabled = analyticsConfig.enabled !== false
@@ -40,16 +47,16 @@
 
   function trackEvent(eventName, parameters = {}) {
     if (!analyticsEnabled || typeof window.gtag !== 'function') return;
-    window.gtag('event', eventName, {
-      ...parameters,
-      transport_type: 'beacon',
-    });
+    try {
+      window.gtag('event', eventName, {
+        ...parameters,
+        transport_type: 'beacon',
+      });
+    } catch (error) {
+      console.warn('방문 통계 이벤트를 기록하지 못했습니다.', error);
+    }
   }
 
-
-  if (!config || !app) {
-    throw new Error('site-data.js 또는 화면 요소를 불러오지 못했습니다.');
-  }
 
   const escapeHtml = (value = '') => String(value)
     .replaceAll('&', '&amp;')
@@ -89,27 +96,62 @@
     </div>`;
 
   function showToast(message) {
+    if (!toast) return;
     toast.textContent = message;
     toast.classList.add('show');
     window.clearTimeout(showToast.timer);
     showToast.timer = window.setTimeout(() => toast.classList.remove('show'), 1800);
   }
 
-  async function copyText(text, successMessage) {
+  async function copyText(text, successMessage, eventName = '', parameters = {}) {
+    const value = String(text || '');
+    let copied = false;
     try {
-      await navigator.clipboard.writeText(text);
-      showToast(successMessage);
+      await navigator.clipboard.writeText(value);
+      copied = true;
     } catch (error) {
       const textarea = document.createElement('textarea');
-      textarea.value = text;
+      const previousFocus = document.activeElement;
+      textarea.value = value;
+      textarea.readOnly = true;
       textarea.style.position = 'fixed';
       textarea.style.opacity = '0';
       document.body.appendChild(textarea);
-      textarea.select();
-      document.execCommand('copy');
-      textarea.remove();
-      showToast(successMessage);
+      try {
+        textarea.focus({ preventScroll: true });
+        textarea.select();
+        textarea.setSelectionRange(0, value.length);
+        copied = document.execCommand('copy') === true;
+      } catch (fallbackError) {
+        copied = false;
+      } finally {
+        textarea.remove();
+        previousFocus?.focus?.({ preventScroll: true });
+      }
     }
+    showToast(copied ? successMessage : '자동 복사가 되지 않았습니다. 아래 내용을 길게 눌러 복사해 주세요.');
+    if (eventName) trackEvent(eventName, { ...parameters, copy_success: copied });
+    if (!copied) {
+      document.getElementById('manual-copy')?.remove();
+      const panel = document.createElement('div');
+      panel.id = 'manual-copy';
+      panel.className = 'manual-copy';
+      const label = document.createElement('p');
+      label.textContent = '아래 내용을 길게 눌러 복사해 주세요.';
+      const input = document.createElement('textarea');
+      input.value = value;
+      input.readOnly = true;
+      input.setAttribute('aria-label', '직접 복사할 내용');
+      const close = document.createElement('button');
+      close.type = 'button';
+      close.textContent = '닫기';
+      close.addEventListener('click', () => panel.remove());
+      panel.append(label, input, close);
+      document.body.appendChild(panel);
+      input.focus({ preventScroll: true });
+      input.select();
+    }
+    return copied;
   }
 
   function getDateParts(dateString) {
@@ -123,10 +165,11 @@
   }
 
   function getDday(dateString) {
-    const weddingDate = new Date(`${dateString}T00:00:00+09:00`);
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const diff = Math.ceil((weddingDate.getTime() - today.getTime()) / 86400000);
+    const { year, month, day } = getDateParts(dateString);
+    const weddingDay = Date.UTC(year, month - 1, day);
+    const koreaNow = new Date(Date.now() + 9 * 3600000);
+    const today = Date.UTC(koreaNow.getUTCFullYear(), koreaNow.getUTCMonth(), koreaNow.getUTCDate());
+    const diff = Math.round((weddingDay - today) / 86400000);
     if (diff > 0) return `D-${diff}`;
     if (diff === 0) return 'D-DAY';
     return `함께한 지 ${Math.abs(diff)}일`;
@@ -172,7 +215,7 @@
     return `
       <div class="gallery-grid reveal" aria-label="웨딩 사진 갤러리">
         ${gallery.map((image, index) => {
-          const immediate = index < 3;
+          const immediate = false;
           const isExtra = index >= initialCount;
           const thumbnailSource = image.thumbnail_src || image.src;
           return `
@@ -269,29 +312,30 @@
             <strong>${escapeHtml(account.bank)} ${escapeHtml(account.number)}</strong>
             <small>예금주 ${escapeHtml(account.holder)}</small>
           </div>
-          <button type="button" class="copy-account" data-account="${escapeHtml(copyValue)}">복사</button>
+          <button type="button" class="copy-account" data-account="${escapeHtml(copyValue)}" aria-label="${escapeHtml(account.relation)} 계좌 복사">복사</button>
         </div>`;
     }).join('');
   }
 
   function renderAccounts() {
-    if (!config.accounts.show) return '';
+    if (!config.accounts?.show) return '';
+    const sides = [
+      { key: 'groom', label: '신랑 측', list: config.accounts.groom_side || [] },
+      { key: 'bride', label: '신부 측', list: config.accounts.bride_side || [] },
+    ].map((side) => ({ ...side, list: side.list.filter((account) => account.show !== false) }))
+      .filter((side) => side.list.length);
+    if (!sides.length) return '';
     return `
       <section class="section account-section">
         ${sectionTitle('ACCOUNT', '마음 전하실 곳')}
         <p class="section-description reveal">${escapeHtml(config.accounts.message)}</p>
-        <div class="account-group reveal">
-          <button type="button" class="account-toggle" data-target="groom-accounts">
-            <span>신랑 측</span><span class="toggle-symbol">+</span>
-          </button>
-          <div id="groom-accounts" class="account-list" hidden>${renderAccountRows(config.accounts.groom_side || [])}</div>
-        </div>
-        <div class="account-group reveal">
-          <button type="button" class="account-toggle" data-target="bride-accounts">
-            <span>신부 측</span><span class="toggle-symbol">+</span>
-          </button>
-          <div id="bride-accounts" class="account-list" hidden>${renderAccountRows(config.accounts.bride_side || [])}</div>
-        </div>
+        ${sides.map((side) => `
+          <div class="account-group reveal">
+            <button type="button" class="account-toggle" data-target="${side.key}-accounts" aria-controls="${side.key}-accounts" aria-expanded="false">
+              <span>${side.label}</span><span class="toggle-symbol" aria-hidden="true">+</span>
+            </button>
+            <div id="${side.key}-accounts" class="account-list" hidden>${renderAccountRows(side.list)}</div>
+          </div>`).join('')}
       </section>`;
   }
 
@@ -300,7 +344,7 @@
     if (!images.map_image) return '';
     return `
       <figure class="map-card reveal">
-        <img src="${escapeHtml(images.map_image)}" alt="${escapeHtml(venue.name)} 약도" loading="lazy" decoding="async" draggable="false" />
+        <img src="${escapeHtml(images.map_image)}" ${images.map_width && images.map_height ? `width="${images.map_width}" height="${images.map_height}"` : ''} alt="${escapeHtml(venue.name)} 약도" loading="lazy" decoding="async" draggable="false" />
       </figure>`;
   }
 
@@ -370,7 +414,7 @@
           ${wedding.display_fr ? `<p class="date-fr">${escapeHtml(wedding.display_fr)}</p>` : ''}
         </div>
         ${renderCalendar()}
-        <p class="dday reveal">${escapeHtml(couple.groom)} · ${escapeHtml(couple.bride)}의 결혼식까지 <strong>${getDday(wedding.date)}</strong></p>
+        <p class="dday reveal">${escapeHtml(couple.groom)} · ${escapeHtml(couple.bride)}${getDday(wedding.date).startsWith('함께한') ? ' · ' : '의 결혼식까지 '}<strong>${getDday(wedding.date)}</strong></p>
       </section>
 
       <section class="section gallery-section">
@@ -422,6 +466,7 @@
               <div class="modal-photo protected-photo" role="img" draggable="false"></div>
             </div>
             <div class="modal-counter" aria-live="polite"></div>
+            <div class="modal-status" hidden role="status"><span></span><button type="button" class="modal-retry" hidden>다시 시도</button></div>
             <div class="modal-dots" aria-label="사진 위치"></div>
           </div>
           <button type="button" class="modal-nav modal-next" aria-label="다음 사진">›</button>
@@ -432,7 +477,21 @@
   function loadLazyImage(image) {
     const source = image.dataset.src;
     if (!source) return;
-    image.addEventListener('load', () => image.classList.add('is-loaded'), { once: true });
+    const finish = () => {
+      image.removeEventListener('error', failed);
+      image.classList.add('is-loaded');
+      image.closest('.gallery-item')?.classList.remove('image-failed');
+      image.removeAttribute('data-src');
+    };
+    const failed = () => {
+      image.removeEventListener('load', finish);
+      image.closest('.gallery-item')?.classList.add('image-failed');
+      image.dataset.src = source;
+      image.dataset.lazyObserved = 'false';
+    };
+    image.addEventListener('load', finish, { once: true });
+    image.addEventListener('error', failed, { once: true });
+    image.loading = 'eager';
     image.src = source;
     image.removeAttribute('data-src');
     lazyImageObserver?.unobserve(image);
@@ -473,13 +532,12 @@
     });
 
     document.querySelector('.address-copy')?.addEventListener('click', (event) => {
-      copyText(event.currentTarget.dataset.address, '주소를 복사했습니다.');
+      copyText(event.currentTarget.dataset.address, '주소를 복사했습니다.', 'address_copy');
     });
 
     document.getElementById('copy-url')?.addEventListener('click', () => {
       const shareUrl = config.site.share_url || config.site.url || window.location.href.split('#')[0];
-      trackEvent('url_copy');
-      copyText(shareUrl, '청첩장 주소를 복사했습니다.');
+      copyText(shareUrl, '청첩장 주소를 복사했습니다.', 'url_copy');
     });
 
     const galleryToggle = document.getElementById('gallery-toggle');
@@ -491,12 +549,13 @@
         item.hidden = !nextExpanded;
       });
       galleryToggle.setAttribute('aria-expanded', String(nextExpanded));
+      trackEvent('gallery_more', { expanded: nextExpanded });
       galleryToggle.querySelector('.gallery-toggle-label').textContent = nextExpanded ? '사진 접기' : '사진 더보기';
       galleryToggle.querySelector('.gallery-toggle-icon').textContent = nextExpanded ? '⌃' : '⌄';
       if (nextExpanded) {
         observeLazyImages(document);
       } else {
-        document.querySelector('.gallery-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        document.querySelector('.gallery-section')?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
       }
     });
 
@@ -505,13 +564,46 @@
     const modalPhoto = modal?.querySelector('.modal-photo');
     const modalCounter = modal?.querySelector('.modal-counter');
     const modalDots = modal?.querySelector('.modal-dots');
+    const modalStatus = modal?.querySelector('.modal-status');
     let currentGalleryIndex = 0;
     let swipeStartX = null;
     let swipeCurrentX = null;
+    let swipePointerId = null;
+    let swipeCaptureTarget = null;
     let dotScrubPointerId = null;
     let suppressNextDotClick = false;
     let modalImageRequestId = 0;
+    let swipeTimer = null;
+    let settleTimer = null;
+    let adjacentTimer = null;
+    let adjacentIdle = false;
+    let loadingTimer = null;
+    let lastGalleryTrigger = null;
     const galleryImageCache = new Map();
+    const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    const cancelAdjacent = () => {
+      if (adjacentTimer !== null) {
+        if (adjacentIdle && typeof window.cancelIdleCallback === 'function') window.cancelIdleCallback(adjacentTimer);
+        else window.clearTimeout(adjacentTimer);
+      }
+      adjacentTimer = null;
+    };
+
+    const clearModalWork = () => {
+      window.clearTimeout(swipeTimer);
+      window.clearTimeout(settleTimer);
+      window.clearTimeout(loadingTimer);
+      swipeTimer = settleTimer = loadingTimer = null;
+      cancelAdjacent();
+      if (modalStatus) modalStatus.hidden = true;
+    };
+
+    const releaseCapture = (element, pointerId) => {
+      if (pointerId !== null && element?.hasPointerCapture?.(pointerId)) {
+        element.releasePointerCapture(pointerId);
+      }
+    };
 
     if (modalDots && gallery.length) {
       modalDots.innerHTML = gallery.map((_, index) => `
@@ -519,38 +611,59 @@
     }
 
     const preloadGalleryImage = (index) => {
-      if (!gallery.length) return Promise.resolve();
-      const normalized = (index + gallery.length) % gallery.length;
+      if (!gallery.length) return Promise.resolve(false);
+      const normalized = ((index % gallery.length) + gallery.length) % gallery.length;
       const source = gallery[normalized].src;
       if (galleryImageCache.has(source)) return galleryImageCache.get(source);
 
       const image = new Image();
       image.decoding = 'async';
       const ready = new Promise((resolve) => {
-        image.addEventListener('load', () => {
-          const decoded = typeof image.decode === 'function'
-            ? image.decode()
-            : Promise.resolve();
-          decoded.catch(() => {}).finally(resolve);
-        }, { once: true });
-        image.addEventListener('error', resolve, { once: true });
+        let finished = false;
+        let timeout;
+        const finish = (success) => {
+          if (finished) return;
+          finished = true;
+          window.clearTimeout(timeout);
+          image.onload = image.onerror = null;
+          if (!success) {
+            galleryImageCache.delete(source);
+            image.removeAttribute('src');
+          }
+          resolve(success);
+        };
+        image.onload = async () => {
+          try {
+            if (typeof image.decode === 'function') await image.decode();
+            finish(image.naturalWidth > 0);
+          } catch (error) {
+            finish(false);
+          }
+        };
+        image.onerror = () => finish(false);
+        timeout = window.setTimeout(() => finish(false), 15000);
       });
-      image.src = source;
       galleryImageCache.set(source, ready);
+      image.src = source;
       return ready;
     };
 
-    const preloadAdjacent = (centerIndex) => {
+    const preloadAdjacent = (centerIndex, requestId) => {
       if (gallery.length < 2) return;
+      cancelAdjacent();
       const prepare = () => {
+        adjacentTimer = null;
+        if (!modal || modal.hidden || requestId !== modalImageRequestId || dotScrubPointerId !== null) return;
         [1, -1].forEach((offset) => {
           preloadGalleryImage(centerIndex + offset);
         });
       };
       if ('requestIdleCallback' in window) {
-        window.requestIdleCallback(prepare, { timeout: 900 });
+        adjacentIdle = true;
+        adjacentTimer = window.requestIdleCallback(prepare, { timeout: 900 });
       } else {
-        window.setTimeout(prepare, 180);
+        adjacentIdle = false;
+        adjacentTimer = window.setTimeout(prepare, 180);
       }
     };
 
@@ -563,9 +676,39 @@
       });
     };
 
+    const prepareCurrentImage = (requestId = modalImageRequestId) => {
+      if (!modal || modal.hidden || !gallery.length || !modalPhoto) return;
+      const image = gallery[currentGalleryIndex];
+      const index = currentGalleryIndex;
+      window.clearTimeout(loadingTimer);
+      if (modalStatus) {
+        modalStatus.hidden = true;
+        modalStatus.querySelector('button').hidden = true;
+      }
+      loadingTimer = window.setTimeout(() => {
+        if (requestId !== modalImageRequestId || modal.hidden || !modalStatus) return;
+        modalStatus.querySelector('span').textContent = '선명한 사진을 불러오고 있습니다.';
+        modalStatus.hidden = false;
+      }, 700);
+      preloadGalleryImage(index).then((success) => {
+        if (requestId !== modalImageRequestId || modal.hidden) return;
+        window.clearTimeout(loadingTimer);
+        if (success) {
+          modalPhoto.style.backgroundImage = `url("${encodeURI(image.src).replaceAll('"', '%22')}")`;
+          if (modalStatus) modalStatus.hidden = true;
+        } else if (modalStatus) {
+          modalStatus.querySelector('span').textContent = '작은 사진으로 표시 중입니다.';
+          modalStatus.querySelector('button').hidden = false;
+          modalStatus.hidden = false;
+        }
+        preloadAdjacent(index, requestId);
+      });
+    };
+
     const updateGalleryModal = (index, direction = 0, mode = 'normal') => {
       if (!modal || !modalPhoto || !gallery.length) return;
-      currentGalleryIndex = (index + gallery.length) % gallery.length;
+      clearModalWork();
+      currentGalleryIndex = ((index % gallery.length) + gallery.length) % gallery.length;
       const image = gallery[currentGalleryIndex];
       const previewSource = image.thumbnail_src || image.src;
       const requestId = ++modalImageRequestId;
@@ -573,28 +716,19 @@
       modalPhoto.classList.remove('slide-next', 'slide-prev', 'scrub-change', 'is-dragging', 'is-settling');
       modalPhoto.style.removeProperty('transform');
       modalPhoto.style.removeProperty('opacity');
-      void modalPhoto.offsetWidth;
+      if (mode !== 'scrub' && direction !== 0 && !reducedMotion()) void modalPhoto.offsetWidth;
       modalPhoto.style.backgroundImage = `url("${encodeURI(previewSource).replaceAll('"', '%22')}")`;
       modalPhoto.setAttribute('aria-label', image.alt || `웨딩 사진 ${currentGalleryIndex + 1}`);
-      if (mode === 'scrub') {
+      if (mode === 'scrub' && !reducedMotion()) {
         modalPhoto.classList.add('scrub-change');
-      } else if (direction !== 0) {
+      } else if (direction !== 0 && !reducedMotion()) {
         modalPhoto.classList.add(direction > 0 ? 'slide-next' : 'slide-prev');
       }
       if (modalCounter) modalCounter.textContent = `${currentGalleryIndex + 1} / ${gallery.length}`;
       updateDots();
 
-      const currentReady = preloadGalleryImage(currentGalleryIndex);
-      if (previewSource !== image.src) {
-        currentReady.then(() => {
-          if (requestId !== modalImageRequestId) return;
-          modalPhoto.style.backgroundImage = `url("${encodeURI(image.src).replaceAll('"', '%22')}")`;
-        });
-      }
-      currentReady.then(() => {
-        if (requestId !== modalImageRequestId) return;
-        preloadAdjacent(currentGalleryIndex);
-      });
+      // 드래그 중에는 번호와 썸네일을 즉시 갱신하고, 놓은 사진의 full을 준비합니다.
+      if (dotScrubPointerId === null) prepareCurrentImage(requestId);
     };
 
     const openGalleryModal = (index) => {
@@ -603,33 +737,56 @@
         image_index: Number(index) + 1,
         image_count: gallery.length,
       });
-      updateGalleryModal(index, 0);
+      lastGalleryTrigger = document.querySelector(`[data-gallery-index="${Number(index)}"]`);
       modal.hidden = false;
+      updateGalleryModal(index, 0);
       document.body.classList.add('modal-open');
+      app.inert = true;
+      app.setAttribute('aria-hidden', 'true');
       modal.querySelector('.modal-close')?.focus({ preventScroll: true });
     };
 
     const closeGalleryModal = () => {
       if (!modal) return;
+      const dotPointer = dotScrubPointerId;
+      const photoPointer = swipePointerId;
+      const photoCapture = swipeCaptureTarget;
+      swipeStartX = swipeCurrentX = swipePointerId = dotScrubPointerId = null;
+      swipeCaptureTarget = null;
+      suppressNextDotClick = false;
+      modalDots?.classList.remove('is-scrubbing');
+      modalCounter?.setAttribute('aria-live', 'polite');
       modalImageRequestId += 1;
       modal.hidden = true;
+      clearModalWork();
+      releaseCapture(modalDots, dotPointer);
+      releaseCapture(photoCapture, photoPointer);
       document.body.classList.remove('modal-open');
+      app.inert = false;
+      app.removeAttribute('aria-hidden');
+      lastGalleryTrigger?.focus({ preventScroll: true });
     };
 
     document.querySelectorAll('.gallery-item').forEach((button) => {
       button.addEventListener('pointerdown', () => {
         preloadGalleryImage(Number(button.dataset.galleryIndex || 0));
       }, { passive: true });
-      button.addEventListener('click', () => openGalleryModal(Number(button.dataset.galleryIndex || 0)));
+      button.addEventListener('click', () => {
+        const photo = button.querySelector('img[data-src]');
+        if (photo && button.classList.contains('image-failed')) loadLazyImage(photo);
+        openGalleryModal(Number(button.dataset.galleryIndex || 0));
+      });
     });
 
     modal?.querySelector('.modal-close')?.addEventListener('click', closeGalleryModal);
     modal?.querySelector('.modal-prev')?.addEventListener('click', () => updateGalleryModal(currentGalleryIndex - 1, -1));
     modal?.querySelector('.modal-next')?.addEventListener('click', () => updateGalleryModal(currentGalleryIndex + 1, 1));
+    modal?.querySelector('.modal-retry')?.addEventListener('click', () => prepareCurrentImage());
 
     const dotIndexAtPosition = (clientX) => {
       if (!modalDots || !gallery.length) return 0;
       const rect = modalDots.getBoundingClientRect();
+      if (rect.width <= 0) return currentGalleryIndex;
       const position = Math.min(Math.max(clientX - rect.left, 0), rect.width);
       return Math.min(gallery.length - 1, Math.floor((position / rect.width) * gallery.length));
     };
@@ -641,12 +798,14 @@
     };
 
     modalDots?.addEventListener('pointerdown', (event) => {
-      if (event.pointerType === 'mouse' && event.button !== 0) return;
+      if (event.isPrimary === false || dotScrubPointerId !== null || (event.pointerType === 'mouse' && event.button !== 0)) return;
+      clearModalWork();
       event.stopPropagation();
       dotScrubPointerId = event.pointerId;
       suppressNextDotClick = true;
       modalDots.setPointerCapture?.(event.pointerId);
       modalDots.classList.add('is-scrubbing');
+      modalCounter?.setAttribute('aria-live', 'off');
       scrubToPosition(event.clientX);
     });
 
@@ -660,9 +819,12 @@
       if (!modalDots || event.pointerId !== dotScrubPointerId) return;
       event.stopPropagation();
       scrubToPosition(event.clientX);
-      modalDots.releasePointerCapture?.(event.pointerId);
+      releaseCapture(modalDots, event.pointerId);
       modalDots.classList.remove('is-scrubbing');
       dotScrubPointerId = null;
+      modalCounter?.setAttribute('aria-live', 'polite');
+      prepareCurrentImage();
+      window.setTimeout(() => { suppressNextDotClick = false; }, 0);
     };
 
     modalDots?.addEventListener('pointerup', finishDotScrub);
@@ -671,6 +833,17 @@
       event.stopPropagation();
       modalDots.classList.remove('is-scrubbing');
       dotScrubPointerId = null;
+      suppressNextDotClick = false;
+      modalCounter?.setAttribute('aria-live', 'polite');
+      prepareCurrentImage();
+    });
+    modalDots?.addEventListener('lostpointercapture', () => {
+      if (dotScrubPointerId === null) return;
+      dotScrubPointerId = null;
+      suppressNextDotClick = false;
+      modalDots.classList.remove('is-scrubbing');
+      modalCounter?.setAttribute('aria-live', 'polite');
+      prepareCurrentImage();
     });
 
     modalDots?.addEventListener('click', (event) => {
@@ -692,15 +865,21 @@
       if (event.target === modal) closeGalleryModal();
     });
     modal?.addEventListener('pointerdown', (event) => {
+      if (event.isPrimary === false || swipePointerId !== null || dotScrubPointerId !== null
+          || (event.pointerType === 'mouse' && event.button !== 0)) return;
       if (event.target.closest('.modal-dots')) return;
       if (!event.target.closest('.modal-viewport')) return;
+      clearModalWork();
+      swipePointerId = event.pointerId;
+      swipeCaptureTarget = event.target.closest('.modal-viewport');
+      swipeCaptureTarget.setPointerCapture?.(event.pointerId);
       swipeStartX = event.clientX;
       swipeCurrentX = event.clientX;
       modalPhoto?.classList.remove('slide-next', 'slide-prev', 'scrub-change', 'is-settling');
       modalPhoto?.classList.add('is-dragging');
     });
     modal?.addEventListener('pointermove', (event) => {
-      if (swipeStartX === null || !modalPhoto) return;
+      if (event.pointerId !== swipePointerId || swipeStartX === null || !modalPhoto) return;
       swipeCurrentX = event.clientX;
       const distance = (swipeCurrentX - swipeStartX) * .58;
       const fade = 1 - Math.min(Math.abs(distance) / 420, .22);
@@ -708,9 +887,12 @@
       modalPhoto.style.opacity = String(fade);
     });
     modal?.addEventListener('pointerup', (event) => {
-      if (event.target.closest('.modal-dots')) return;
-      if (swipeStartX === null) return;
+      if (event.pointerId !== swipePointerId || swipeStartX === null) return;
       const distance = event.clientX - swipeStartX;
+      const captureTarget = swipeCaptureTarget;
+      swipePointerId = null;
+      swipeCaptureTarget = null;
+      releaseCapture(captureTarget, event.pointerId);
       swipeStartX = null;
       swipeCurrentX = null;
       if (!modalPhoto) return;
@@ -721,11 +903,12 @@
       if (Math.abs(distance) < 45) {
         modalPhoto.style.transform = 'translate3d(0, 0, 0)';
         modalPhoto.style.opacity = '1';
-        window.setTimeout(() => {
+        settleTimer = window.setTimeout(() => {
           modalPhoto.classList.remove('is-settling');
           modalPhoto.style.removeProperty('transform');
           modalPhoto.style.removeProperty('opacity');
-        }, 180);
+          prepareCurrentImage();
+        }, reducedMotion() ? 0 : 180);
         return;
       }
 
@@ -733,11 +916,19 @@
       preloadGalleryImage(currentGalleryIndex + direction);
       modalPhoto.style.transform = `translate3d(${-direction * 70}px, 0, 0)`;
       modalPhoto.style.opacity = '.42';
-      window.setTimeout(() => {
-        updateGalleryModal(currentGalleryIndex + direction, direction);
-      }, 120);
+      const nextIndex = currentGalleryIndex + direction;
+      const requestId = modalImageRequestId;
+      swipeTimer = window.setTimeout(() => {
+        if (modal.hidden || requestId !== modalImageRequestId) return;
+        updateGalleryModal(nextIndex, direction);
+      }, reducedMotion() ? 0 : 120);
     });
-    modal?.addEventListener('pointercancel', () => {
+    const cancelSwipe = (event) => {
+      if (swipePointerId === null || event.pointerId !== swipePointerId) return;
+      const captureTarget = swipeCaptureTarget;
+      swipePointerId = null;
+      swipeCaptureTarget = null;
+      releaseCapture(captureTarget, event.pointerId);
       swipeStartX = null;
       swipeCurrentX = null;
       if (!modalPhoto) return;
@@ -745,12 +936,15 @@
       modalPhoto.classList.add('is-settling');
       modalPhoto.style.transform = 'translate3d(0, 0, 0)';
       modalPhoto.style.opacity = '1';
-      window.setTimeout(() => {
+      settleTimer = window.setTimeout(() => {
         modalPhoto.classList.remove('is-settling');
         modalPhoto.style.removeProperty('transform');
         modalPhoto.style.removeProperty('opacity');
-      }, 180);
-    });
+        prepareCurrentImage();
+      }, reducedMotion() ? 0 : 180);
+    };
+    modal?.addEventListener('pointercancel', cancelSwipe);
+    modal?.addEventListener('lostpointercapture', cancelSwipe);
     modal?.addEventListener('dblclick', (event) => event.preventDefault());
     modal?.addEventListener('wheel', (event) => {
       if (event.ctrlKey) event.preventDefault();
@@ -761,18 +955,31 @@
 
     document.addEventListener('keydown', (event) => {
       if (!modal || modal.hidden) return;
-      if (event.key === 'Escape') closeGalleryModal();
-      if (event.key === 'ArrowLeft') updateGalleryModal(currentGalleryIndex - 1, -1);
-      if (event.key === 'ArrowRight') updateGalleryModal(currentGalleryIndex + 1, 1);
+      if (event.key === 'Escape') { event.preventDefault(); closeGalleryModal(); }
+      if (event.key === 'ArrowLeft') { event.preventDefault(); updateGalleryModal(currentGalleryIndex - 1, -1); }
+      if (event.key === 'ArrowRight') { event.preventDefault(); updateGalleryModal(currentGalleryIndex + 1, 1); }
+      if (event.key === 'Tab') {
+        const buttons = Array.from(modal.querySelectorAll('button:not([disabled])'))
+          .filter((button) => button.getClientRects().length);
+        const first = buttons[0];
+        const last = buttons[buttons.length - 1];
+        if (event.shiftKey && (document.activeElement === first || !modal.contains(document.activeElement))) {
+          event.preventDefault(); last?.focus();
+        } else if (!event.shiftKey && (document.activeElement === last || !modal.contains(document.activeElement))) {
+          event.preventDefault(); first?.focus();
+        }
+      }
     });
 
     document.querySelectorAll('.account-toggle').forEach((button) => {
       button.addEventListener('click', () => {
         const target = document.getElementById(button.dataset.target);
         const symbol = button.querySelector('.toggle-symbol');
+        if (!target) return;
         const willOpen = target.hidden;
         target.hidden = !target.hidden;
         symbol.textContent = target.hidden ? '+' : '−';
+        button.setAttribute('aria-expanded', String(willOpen));
 
         if (willOpen) {
           trackEvent('account_open', {
@@ -783,8 +990,12 @@
     });
 
     document.querySelectorAll('.copy-account').forEach((button) => {
-      button.addEventListener('click', () => copyText(button.dataset.account, '은행명과 계좌번호를 복사했습니다.'));
+      button.addEventListener('click', () => copyText(button.dataset.account, '은행명과 계좌번호를 복사했습니다.', 'account_copy', {
+        account_side: button.closest('.account-list')?.id === 'groom-accounts' ? 'groom' : 'bride',
+      }));
     });
+
+    document.querySelector('.venue-summary a[href^="tel:"]')?.addEventListener('click', () => trackEvent('venue_call'));
 
     document.querySelectorAll('.protected-photo').forEach((photo) => {
       photo.addEventListener('contextmenu', (event) => event.preventDefault());
@@ -793,7 +1004,6 @@
     });
 
     observeLazyImages(document);
-    setupReveal();
   }
 
   function setupReveal() {
@@ -810,10 +1020,19 @@
         }
       });
     }, { threshold: 0.12 });
+    document.body.classList.add('reveal-pending');
     elements.forEach((element) => observer.observe(element));
   }
 
-  setupAnalytics();
-  render();
-  setupInteractions();
+  const fallbackMarkup = app.innerHTML;
+  try {
+    render();
+  } catch (error) {
+    app.innerHTML = fallbackMarkup;
+    console.error('화면을 준비하지 못했습니다.', error);
+    return;
+  }
+  try { setupAnalytics(); } catch (error) { console.warn('방문 통계를 준비하지 못했습니다.', error); }
+  try { setupInteractions(); } catch (error) { console.error('일부 버튼을 준비하지 못했습니다.', error); }
+  try { setupReveal(); } catch (error) { document.body.classList.remove('reveal-pending'); }
 })();

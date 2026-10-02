@@ -14,19 +14,30 @@
     <meta property="og:image:type" content="image/png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content="김현수 · 김현선 결혼식 초대" />
+    <meta property="og:image:alt" content="{{OG_ALT}}" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:image" content="{{OG_IMAGE}}" />
     <link rel="canonical" href="{{CANONICAL_URL}}" />
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>♡</text></svg>" />
     <link rel="stylesheet" href="static/styles.css?v={{ASSET_VERSION}}" />
+    {{COVER_PRELOAD}}
     <title>{{TITLE}}</title>
   </head>
   <body>
-    <main id="app" class="invitation-card"></main>
+    <main id="app" class="invitation-card">
+      <section class="section loading-fallback" aria-label="예식 안내">
+        <h1>{{TITLE}}</h1>
+        <p>{{FALLBACK_DATE}}</p>
+        <p>{{FALLBACK_VENUE}}</p>
+        <p>{{FALLBACK_ADDRESS}}</p>
+        <p><a href="{{FALLBACK_MAP_URL}}" target="_blank" rel="noopener">지도 보기</a></p>
+        <p id="loading-message" role="status">청첩장을 준비하고 있습니다. 화면이 열리지 않으면 새로고침해 주세요.</p>
+        <button type="button" onclick="window.location.reload()">다시 불러오기</button>
+        <noscript><p>사진과 버튼을 이용하려면 JavaScript를 허용해 주세요.</p></noscript>
+      </section>
+    </main>
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
     <script src="site-data.js?v={{ASSET_VERSION}}"></script>
     <script src="static/app.js?v={{ASSET_VERSION}}"></script>
   </body>
 </html>
-

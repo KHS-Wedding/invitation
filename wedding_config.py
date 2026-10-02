@@ -11,7 +11,7 @@ WEDDING = {
         'url': 'https://khs-wedding.github.io/invitation/',
         'share_url': 'https://khs-wedding.github.io/invitation/',
         'share_image': 'static/share-preview-v15.png',
-        'asset_version': '23',
+        'asset_version': '24',
         'draft_notice': '',
     },
 
@@ -115,7 +115,8 @@ WEDDING = {
             {'relation': '신랑', 'bank': '카카오뱅크', 'number': '3333-04-1036106', 'holder': '김현수'},
         ],
         'bride_side': [
-            {'relation': '신부', 'bank': '하나은행', 'number': '1234-1234', 'holder': '김현선'},
+            # 실제 계좌번호를 입력한 뒤 show를 True로 변경하세요.
+            {'relation': '신부', 'bank': '하나은행', 'number': '1234-1234', 'holder': '김현선', 'show': False},
         ],
     },
 

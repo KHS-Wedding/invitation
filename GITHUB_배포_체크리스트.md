@@ -1,36 +1,15 @@
-# GitHub Pages 배포 체크리스트
+# 배포 확인
 
-## 계정과 저장소
+- [ ] wedding_config.py의 날짜·시간·장소·교통·계좌를 확인
+- [ ] 예시 계좌는 show=False 유지, 실제 번호 확인 후 공개
+- [ ] requirements.txt 설치 후 회귀 검사 통과
+- [ ] python manage.py build 및 이미지 변환 경고·용량 출력 확인
+- [ ] 갤러리 중앙 표시·contain·좌우 스와이프·손가락 추종 확인
+- [ ] 하단 점 영역을 끝까지 드래그하여 마지막 사진 선택 확인
+- [ ] 빠른 닫기·다른 사진 재열기 및 느린 통신·요청 실패 확인
+- [ ] 주소·계좌·URL 복사, 지도 링크 확인
+- [ ] iPhone Safari·Android Chrome 실기기 확인
+- [ ] main 반영 후 GitHub Actions 배포 성공 확인
+- [ ] 배포 페이지와 OG 미리보기 확인
 
-- [ ] GitHub 계정 생성
-- [ ] 새 Public 저장소 생성
-- [ ] 저장소 이름 결정: 예 `wedding-invitation`
-- [ ] 프로젝트 전체 파일 업로드
-
-## Pages 설정
-
-- [ ] 저장소 `Settings` 열기
-- [ ] 왼쪽 메뉴에서 `Pages` 선택
-- [ ] `Source`를 `GitHub Actions`로 선택
-- [ ] `Actions` 탭에서 배포 성공 여부 확인
-- [ ] `Settings` → `Pages`에서 `Visit site` 클릭
-
-## 첫 배포 후
-
-- [ ] 발급된 주소를 복사
-- [ ] `wedding_config.py`의 `site.url`에 입력
-- [ ] 다시 업로드하여 링크 미리보기 정보 갱신
-
-## 사진 추가
-
-- [ ] 대표사진: `photos/cover/cover.jpg`
-- [ ] 갤러리: `photos/gallery/01.jpg`, `02.jpg` …
-- [ ] 약도: `photos/map/map.jpg`
-- [ ] 사진 파일당 용량을 가능하면 2MB 이하로 축소
-
-## 공유 시 주의
-
-- [ ] 계좌번호 공개 여부 확인
-- [ ] 부모님 성함·연락처 공개 동의 확인
-- [ ] 예식장, 홀, 시간 최종 확인
-- [ ] 네이버·카카오 길찾기 버튼 직접 테스트
+CSS/JS/데이터 버전은 빌드에서 자동으로 내용 해시를 포함합니다. 사진도 내용 해시 파일명으로 생성합니다. 공유 미리보기 변경 시에는 새 이미지 파일명을 site.share_image에 지정하세요.
