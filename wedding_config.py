@@ -116,7 +116,7 @@ WEDDING = {
         ],
         'bride_side': [
             # 실제 계좌번호를 입력한 뒤 show를 True로 변경하세요.
-            {'relation': '신부', 'bank': '하나은행', 'number': '1234-1234', 'holder': '김현선', 'show': False},
+            {'relation': '신부', 'bank': '신한은행', 'number': '110-427-932100', 'holder': '김현선', 'show': True},
         ],
     },
 
